@@ -97,6 +97,10 @@ public final class PopupStackRegistry {
         stacks[Key(sceneSessionID: sceneSessionID, popupStackID: popupStackID)]
     }
 
+    func resolvedSceneSessionID(popupStackID: PopupStackID) -> String? {
+        resolve(popupStackID)?.key.sceneSessionID
+    }
+
     @discardableResult
     func insert(
         _ popup: AnyPopup,

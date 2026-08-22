@@ -3,6 +3,40 @@ import XCTest
 
 @MainActor
 final class AnchorRegistryTests: XCTestCase {
+    @MainActor
+    func testCompatibilityFrameLookupUsesActiveSceneAndStack() {
+        let sceneA = "anchor-compatibility-a"
+        let sceneB = "anchor-compatibility-b"
+        let stackID = PopupStackID("anchor-compatibility")
+        let stackA = PopupStack(id: stackID)
+        let stackB = PopupStack(id: stackID)
+        PopupStackRegistry.shared.register(stackA, sceneSessionID: sceneA)
+        PopupStackRegistry.shared.register(stackB, sceneSessionID: sceneB)
+        defer {
+            PopupStackRegistry.shared.setActiveSceneSessionID(nil)
+            PopupStackRegistry.shared.unregister(sceneSessionID: sceneA, popupStackID: stackID)
+            PopupStackRegistry.shared.unregister(sceneSessionID: sceneB, popupStackID: stackID)
+            AnchorRegistry.shared.removeAll(sceneSessionID: sceneA)
+            AnchorRegistry.shared.removeAll(sceneSessionID: sceneB)
+        }
+
+        _ = AnchorRegistry.shared.setFrame(
+            CGRect(x: 10, y: 20, width: 30, height: 40),
+            for: .init(sceneSessionID: sceneA, popupStackID: stackID, anchorID: "tool")
+        )
+        _ = AnchorRegistry.shared.setFrame(
+            CGRect(x: 50, y: 60, width: 70, height: 80),
+            for: .init(sceneSessionID: sceneB, popupStackID: stackID, anchorID: "tool")
+        )
+
+        PopupStackRegistry.shared.setActiveSceneSessionID(sceneB)
+
+        XCTAssertEqual(
+            AnchorRegistry.frame(forKey: "tool", popupStackID: stackID),
+            CGRect(x: 50, y: 60, width: 70, height: 80)
+        )
+    }
+
     private var registry = AnchorRegistry()
 
     func testSameAnchorIDInDifferentScenesDoesNotCollide() {

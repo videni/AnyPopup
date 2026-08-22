@@ -81,6 +81,20 @@ public final class AnchorRegistry: ObservableObject {
 
     public init() {}
 
+    public static func frame(
+        forKey anchorID: String,
+        popupStackID: PopupStackID = .shared
+    ) -> CGRect {
+        guard let sceneSessionID = PopupStackRegistry.shared.resolvedSceneSessionID(
+            popupStackID: popupStackID
+        ) else { return .zero }
+        return shared.frame(for: Key(
+            sceneSessionID: sceneSessionID,
+            popupStackID: popupStackID,
+            anchorID: anchorID
+        )) ?? .zero
+    }
+
     @discardableResult
     public func setFrame(_ frame: CGRect, for key: Key) -> Bool {
         guard PopupGeometryValidation.isValidAnchorFrame(frame) else {
