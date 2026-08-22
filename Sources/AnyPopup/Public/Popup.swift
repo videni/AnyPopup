@@ -7,11 +7,11 @@ public protocol Popup: View, Sendable {
 
     var popupConfig: Config { get }
 
-    func onFocus()
-    func onDismiss()
+    @MainActor func onFocus()
+    @MainActor func onDismiss()
 }
 
 public extension Popup {
-    func onFocus() {}
-    func onDismiss() {}
+    @MainActor func onFocus() {}
+    @MainActor func onDismiss() {}
 }

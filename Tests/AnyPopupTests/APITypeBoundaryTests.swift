@@ -39,6 +39,34 @@ final class APITypeBoundaryTests: XCTestCase {
         XCTAssertNotEqual(result.status, 0)
         XCTAssertTrue(result.output.contains("has no member 'anchored'"), result.output)
     }
+
+    func testContainerPopupOnlyHasPlainPresent() throws {
+        let valid = try typecheck(popupFixture(
+            config: "ContainerPopupConfig.center()",
+            call: "await ExamplePopup().setCustomID(\"menu\").dismissAfter(1).dismissKeyboardOnDismissal(false).present()"
+        ))
+        let invalid = try typecheck(popupFixture(
+            config: "ContainerPopupConfig.center()",
+            call: "await ExamplePopup().present(anchoredTo: \"menu\")"
+        ))
+
+        XCTAssertEqual(valid.status, 0, valid.output)
+        XCTAssertNotEqual(invalid.status, 0)
+    }
+
+    func testAnchoredPopupOnlyHasAnchoredPresent() throws {
+        let valid = try typecheck(popupFixture(
+            config: "AnchoredPopupConfig()",
+            call: "await ExamplePopup().setCustomID(\"menu\").dismissAfter(1).present(anchoredTo: \"button\")"
+        ))
+        let invalid = try typecheck(popupFixture(
+            config: "AnchoredPopupConfig()",
+            call: "await ExamplePopup().present()"
+        ))
+
+        XCTAssertEqual(valid.status, 0, valid.output)
+        XCTAssertNotEqual(invalid.status, 0)
+    }
 }
 
 private extension APITypeBoundaryTests {
@@ -91,5 +119,19 @@ private extension APITypeBoundaryTests {
 
     enum TypecheckError: Error {
         case moduleNotFound
+    }
+
+    func popupFixture(config: String, call: String) -> String {
+        """
+        import AnyPopup
+        import SwiftUI
+        struct ExamplePopup: Popup {
+            let popupConfig = \(config)
+            var body: some View { Text("Example") }
+        }
+        @MainActor func run() async {
+            \(call)
+        }
+        """
     }
 }
