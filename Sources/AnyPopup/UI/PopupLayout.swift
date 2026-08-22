@@ -422,22 +422,21 @@ private extension PopupLayout {
             return .unspecified
         case let .dimensions(width, height):
             return ProposedViewSize(
-                width: proposedLength(width, available: environment.availableWidth),
-                height: proposedLength(height, available: environment.availableHeight)
+                width: width.proposedLength(
+                    availableSize: CGSize(
+                        width: environment.availableWidth,
+                        height: environment.availableHeight
+                    ),
+                    axis: .width
+                ),
+                height: height.proposedLength(
+                    availableSize: CGSize(
+                        width: environment.availableWidth,
+                        height: environment.availableHeight
+                    ),
+                    axis: .height
+                )
             )
-        }
-    }
-
-    func proposedLength(_ dimension: PopupDimension, available: CGFloat) -> CGFloat? {
-        switch dimension {
-        case .content:
-            nil
-        case let .fixed(value):
-            max(0, value)
-        case let .fraction(value):
-            available * min(max(0, value), 1)
-        case .fill:
-            available
         }
     }
 

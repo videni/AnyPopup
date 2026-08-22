@@ -69,15 +69,15 @@ extension ContainerPopupGeometry {
             proposed = normalizedContent
         case let .dimensions(width, height):
             proposed = CGSize(
-                width: resolve(
-                    width,
-                    content: normalizedContent.width,
-                    available: normalizedAvailable.width
+                width: width.resolvedLength(
+                    contentSize: normalizedContent,
+                    availableSize: normalizedAvailable,
+                    axis: .width
                 ),
-                height: resolve(
-                    height,
-                    content: normalizedContent.height,
-                    available: normalizedAvailable.height
+                height: height.resolvedLength(
+                    contentSize: normalizedContent,
+                    availableSize: normalizedAvailable,
+                    axis: .height
                 )
             )
         }
@@ -134,20 +134,4 @@ private extension ContainerPopupGeometry {
         )
     }
 
-    static func resolve(
-        _ dimension: PopupDimension,
-        content: CGFloat,
-        available: CGFloat
-    ) -> CGFloat {
-        switch dimension {
-        case .content:
-            content
-        case let .fixed(value):
-            max(0, value)
-        case let .fraction(value):
-            available * min(max(0, value), 1)
-        case .fill:
-            available
-        }
-    }
 }

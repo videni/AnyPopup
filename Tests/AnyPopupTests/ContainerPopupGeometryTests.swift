@@ -84,4 +84,38 @@ final class ContainerPopupGeometryTests: XCTestCase {
 
         XCTAssertEqual(frame, CGRect(x: 20, y: 50, width: 460, height: 700))
     }
+
+    func testDimensionCanUseRemainingHeightWithMinimumAndWidthMaximum() {
+        let height = PopupDimension.availableHeight
+            .subtracting(144)
+            .atLeast(200)
+            .atMost(.availableWidth)
+        let config = TopPopupConfig()
+            .size(width: .fixed(380), height: height)
+            .position(horizontal: .leading, offset: CGSize(width: 16, height: 72))
+
+        XCTAssertEqual(
+            ContainerPopupGeometry.top(
+                contentSize: .zero,
+                availableFrame: CGRect(x: 0, y: 0, width: 1_000, height: 800),
+                config: config
+            ),
+            CGRect(x: 16, y: 72, width: 380, height: 656)
+        )
+    }
+
+    func testDimensionCanClampHeightToAvailableWidth() {
+        let height = PopupDimension.availableHeight
+            .subtracting(100)
+            .atMost(.availableWidth)
+
+        XCTAssertEqual(
+            ContainerPopupGeometry.top(
+                contentSize: .zero,
+                availableFrame: CGRect(x: 0, y: 0, width: 700, height: 1_200),
+                config: TopPopupConfig().size(width: .fixed(380), height: height)
+            ).height,
+            700
+        )
+    }
 }

@@ -34,11 +34,30 @@ func inheritPopupDefault<Configuration, Value>(
     result[keyPath: keyPath] = defaults[keyPath: keyPath]
 }
 
-public enum PopupDimension: Sendable, Equatable {
+public indirect enum PopupDimension: Sendable, Equatable {
     case content
     case fixed(CGFloat)
     case fraction(CGFloat)
     case fill
+    case availableWidth
+    case availableHeight
+    case subtract(PopupDimension, CGFloat)
+    case lowerBound(PopupDimension, CGFloat)
+    case upperBound(PopupDimension, PopupDimension)
+}
+
+public extension PopupDimension {
+    func subtracting(_ value: CGFloat) -> Self {
+        .subtract(self, value)
+    }
+
+    func atLeast(_ value: CGFloat) -> Self {
+        .lowerBound(self, value)
+    }
+
+    func atMost(_ value: PopupDimension) -> Self {
+        .upperBound(self, value)
+    }
 }
 
 public enum PopupSizePolicy: Sendable, Equatable {
