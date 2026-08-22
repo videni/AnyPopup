@@ -30,10 +30,19 @@ final class AnchorRegistryTests: XCTestCase {
         )
 
         PopupStackRegistry.shared.setActiveSceneSessionID(sceneB)
+        XCTAssertTrue(AnchorRegistry.setFrame(
+            CGRect(x: 90, y: 100, width: 110, height: 120),
+            forKey: "manual",
+            popupStackID: stackID
+        ))
 
         XCTAssertEqual(
             AnchorRegistry.frame(forKey: "tool", popupStackID: stackID),
             CGRect(x: 50, y: 60, width: 70, height: 80)
+        )
+        XCTAssertEqual(
+            AnchorRegistry.frame(forKey: "manual", popupStackID: stackID),
+            CGRect(x: 90, y: 100, width: 110, height: 120)
         )
     }
 
