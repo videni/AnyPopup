@@ -300,6 +300,7 @@ struct PopupLayout: Layout {
     let environment: PopupEnvironment
     let defaults: PopupDefaults
     let interactionMap: PopupInteractionMap
+    let presentationStore: PopupPresentationStore
 
     func makeCache(subviews: Subviews) -> Cache {
         Cache()
@@ -318,6 +319,10 @@ struct PopupLayout: Layout {
             defaults: defaults
         )
         interactionMap.publish(cache.plan)
+        let plan = cache.plan
+        Task { @MainActor in
+            presentationStore.publish(plan)
+        }
         return environment.containerSize
     }
 

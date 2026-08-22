@@ -37,9 +37,19 @@ private struct PopupContainerSizeKey: EnvironmentKey {
     static let defaultValue = CGSize.zero
 }
 
+private struct PopupAnchoredGeometryKey: EnvironmentKey {
+    static let defaultValue: AnchoredPopupGeometry? = nil
+}
+
 public extension EnvironmentValues {
     var popupContainerSize: CGSize {
         get { self[PopupContainerSizeKey.self] }
         set { self[PopupContainerSizeKey.self] = newValue }
+    }
+
+    /// Anchored popup 最终屏幕避让结果。Container popup 中为 `nil`。
+    var popupAnchoredGeometry: AnchoredPopupGeometry? {
+        get { self[PopupAnchoredGeometryKey.self] }
+        set { self[PopupAnchoredGeometryKey.self] = newValue }
     }
 }

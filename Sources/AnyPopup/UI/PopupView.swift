@@ -4,6 +4,7 @@ public struct PopupView: View {
     @ObservedObject private var popupStack: PopupStack
     @ObservedObject private var anchorRegistry: AnchorRegistry
     @ObservedObject private var dismissalCoordinator: PopupDismissalCoordinator
+    @StateObject private var presentationStore: PopupPresentationStore
     @State private var verticalInteractionStates: [PopupID: PopupVerticalInteractionState] = [:]
 
     public let interactionMap: PopupInteractionMap
@@ -26,6 +27,7 @@ public struct PopupView: View {
         _popupStack = ObservedObject(wrappedValue: popupStack)
         _anchorRegistry = ObservedObject(wrappedValue: anchorRegistry)
         _dismissalCoordinator = ObservedObject(wrappedValue: popupStack.dismissalCoordinator)
+        _presentationStore = StateObject(wrappedValue: PopupPresentationStore())
         self.sceneSessionID = sceneSessionID
         self.environment = environment
         self.defaults = defaults
@@ -60,7 +62,8 @@ public struct PopupView: View {
             inputs: inputs,
             environment: environment,
             defaults: defaults,
-            interactionMap: interactionMap
+            interactionMap: interactionMap,
+            presentationStore: presentationStore
         ) {
             ForEach(Array(popups.enumerated()), id: \.element.id) { index, popup in
                 let chrome = resolvedChrome(for: popup.configuration)
@@ -96,6 +99,10 @@ public struct PopupView: View {
                     for: popup.configuration
                 )
                 popup.body
+                    .environment(
+                        \.popupAnchoredGeometry,
+                        presentationStore.anchoredGeometry(for: popup.id)
+                    )
                     .modifier(PopupChromeModifier(
                         chrome: chrome,
                         stackOverlayOpacity: appearance.overlayOpacity
@@ -117,6 +124,10 @@ public struct PopupView: View {
 
             ForEach(dismissalSnapshots) { snapshot in
                 snapshot.popup.body
+                    .environment(
+                        \.popupAnchoredGeometry,
+                        snapshot.presentation.anchoredGeometry
+                    )
                     .modifier(PopupChromeModifier(
                         chrome: PopupChrome(snapshot.presentation)
                     ))
