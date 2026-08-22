@@ -63,6 +63,49 @@ final class MijickConfigurationMappingTests: XCTestCase {
         XCTAssertEqual(bottom.detents, [.fixed(300)])
     }
 
+    func testMijickNamedConveniencesMapToTypedPolicies() {
+        let config = BottomPopupConfig()
+            .popupHorizontalPadding(22)
+            .popupTopPadding(10)
+            .popupBottomPadding(18)
+            .cornerRadius(14)
+            .backgroundColor(.red)
+            .overlayColor(.black.opacity(0.4))
+            .transition(.opacity)
+            .tapOutsideToDismissPopup(true)
+            .ignoreSafeArea(edges: [.bottom])
+            .enableDragGesture(true)
+            .dragGestureAreaSize(48)
+            .heightMode(.fraction(0.7))
+
+        XCTAssertEqual(config.padding, EdgeInsets(top: 10, leading: 22, bottom: 18, trailing: 22))
+        XCTAssertEqual(config.corners, .all(radius: 14))
+        XCTAssertEqual(config.background, .color(.red))
+        XCTAssertEqual(config.insertionTransition, .opacity)
+        XCTAssertEqual(config.removalTransition, .opacity)
+        XCTAssertEqual(config.outsideInteraction, .dismissTop)
+        XCTAssertEqual(config.safeArea, .ignoring(.bottom))
+        XCTAssertTrue(config.drag.isEnabled)
+        XCTAssertEqual(config.drag.activationArea, 48)
+        XCTAssertEqual(
+            config.size,
+            .dimensions(width: .content, height: .fraction(0.7))
+        )
+    }
+
+    func testAnchoredMijickNamedConveniencesKeepAnchoredDomain() {
+        let config = AnchoredPopupConfig()
+            .originAnchor(.bottomRight)
+            .popupAnchor(.topRight)
+            .edgePadding(18, edges: .all)
+            .tapOutsideBehavior(.passThrough)
+
+        XCTAssertEqual(config.sourceAnchor, .bottomRight)
+        XCTAssertEqual(config.popupAnchor, .topRight)
+        XCTAssertEqual(config.screenAvoidance, .init(edges: .all, padding: 18))
+        XCTAssertEqual(config.outsideInteraction, .passThrough)
+    }
+
     func testContainerMapsLayoutTransitionWithoutChangingPopupIdentity() {
         let config = ContainerPopupConfig.center()
             .layoutTransition(.move(from: .bottom))

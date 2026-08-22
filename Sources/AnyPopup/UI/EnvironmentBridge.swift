@@ -77,6 +77,7 @@ struct PopupSceneRootView: View {
                 defaults: defaults,
                 interactionMap: interactionMap
             )
+            .environment(\.popupContainerSize, proxy.size)
         }
         .environment(\.locale, environmentBridge.locale)
         .environment(\.layoutDirection, environmentBridge.layoutDirection)

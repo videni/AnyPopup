@@ -44,6 +44,18 @@ public struct AnchoredPopupConfig: PopupConfiguration,
         return copy
     }
 
+    public func originAnchor(_ anchor: PopupAnchorPoint) -> Self {
+        var copy = self
+        copy.sourceAnchor = anchor
+        return copy
+    }
+
+    public func popupAnchor(_ anchor: PopupAnchorPoint) -> Self {
+        var copy = self
+        copy.popupAnchor = anchor
+        return copy
+    }
+
     public func offset(x: CGFloat, y: CGFloat) -> Self {
         var copy = self
         copy.offset = CGSize(width: x, height: y)
@@ -54,6 +66,19 @@ public struct AnchoredPopupConfig: PopupConfiguration,
         var copy = self
         copy.screenAvoidance = .init(edges: edges, padding: padding)
         return copy
+    }
+
+    public func edgePadding(_ value: CGFloat, edges: Edge.Set = .horizontal) -> Self {
+        screenAvoidance(edges: edges, padding: value)
+    }
+
+    public func tapOutsideBehavior(_ behavior: TapOutsideBehavior) -> Self {
+        let policy: OutsideInteractionPolicy = switch behavior {
+        case .none: .consume
+        case .dismiss: .dismissTop
+        case .passThrough: .passThrough
+        }
+        return outsideInteraction(policy)
     }
 
     public func when(_ condition: PopupCondition, use config: Self) -> Self {

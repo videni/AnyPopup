@@ -32,3 +32,14 @@ public struct PopupEnvironment: Sendable, Equatable {
         )
     }
 }
+
+private struct PopupContainerSizeKey: EnvironmentKey {
+    static let defaultValue = CGSize.zero
+}
+
+public extension EnvironmentValues {
+    var popupContainerSize: CGSize {
+        get { self[PopupContainerSizeKey.self] }
+        set { self[PopupContainerSizeKey.self] = newValue }
+    }
+}

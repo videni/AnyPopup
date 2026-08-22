@@ -149,6 +149,13 @@ private extension PopupPresentationResolver {
             safeAreaInsets = environment.safeArea
         case .ignored:
             safeAreaInsets = EdgeInsets()
+        case let .ignoring(edges):
+            safeAreaInsets = EdgeInsets(
+                top: edges.contains(.top) ? 0 : environment.safeArea.top,
+                leading: edges.contains(.leading) ? 0 : environment.safeArea.leading,
+                bottom: edges.contains(.bottom) ? 0 : environment.safeArea.bottom,
+                trailing: edges.contains(.trailing) ? 0 : environment.safeArea.trailing
+            )
         }
         let keyboardHeight: CGFloat
         switch keyboardAvoidance {

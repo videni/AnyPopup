@@ -98,6 +98,20 @@ public enum PopupKeyboardAvoidance: Sendable, Equatable {
 public enum PopupSafeAreaPolicy: Sendable, Equatable {
     case contained
     case ignored
+    case ignoring(Edge.Set)
+}
+
+public enum PopupHeightMode: Sendable, Equatable {
+    case auto
+    case fixed(CGFloat)
+    case fraction(CGFloat)
+    case fullscreen
+}
+
+public enum TapOutsideBehavior: Sendable, Equatable {
+    case none
+    case dismiss
+    case passThrough
 }
 
 public enum PopupDragDirection: Sendable, Equatable {
@@ -226,6 +240,18 @@ public extension PopupVisualConfigurable {
         copy.backdrop = policy
         return copy
     }
+
+    func cornerRadius(_ radius: CGFloat) -> Self {
+        corners(.all(radius: max(0, radius)))
+    }
+
+    func backgroundColor(_ color: Color) -> Self {
+        background(.color(color))
+    }
+
+    func overlayColor(_ color: Color) -> Self {
+        backdrop(.color(color, opacity: 1))
+    }
 }
 
 public protocol PopupTransitionConfigurable: PopupConfiguration {
@@ -240,6 +266,10 @@ public extension PopupTransitionConfigurable {
         copy.removalTransition = removal
         return copy
     }
+
+    func transition(_ value: PopupTransition) -> Self {
+        transition(insertion: value, removal: value)
+    }
 }
 
 public protocol PopupOutsideInteractionConfigurable: PopupConfiguration {
@@ -251,6 +281,10 @@ public extension PopupOutsideInteractionConfigurable {
         var copy = self
         copy.outsideInteraction = policy
         return copy
+    }
+
+    func tapOutsideToDismissPopup(_ isEnabled: Bool) -> Self {
+        outsideInteraction(isEnabled ? .dismissTop : .consume)
     }
 }
 
@@ -267,6 +301,10 @@ public extension PopupSafeAreaConfigurable {
         var copy = self
         copy.safeArea = policy
         return copy
+    }
+
+    func ignoreSafeArea(edges: Edge.Set) -> Self {
+        safeArea(edges.isEmpty ? .contained : .ignoring(edges))
     }
 }
 
@@ -292,6 +330,14 @@ public extension PopupDragConfigurable {
         copy.drag = policy
         return copy
     }
+
+    func enableDragGesture(_ isEnabled: Bool) -> Self {
+        drag(isEnabled: isEnabled)
+    }
+
+    func dragGestureAreaSize(_ size: CGFloat) -> Self {
+        drag(isEnabled: drag.isEnabled, activationArea: size)
+    }
 }
 
 public protocol PopupStackAppearanceConfigurable: PopupConfiguration {
@@ -311,5 +357,42 @@ public extension PopupDetentConfigurable {
         var copy = self
         copy.detents = values
         return copy
+    }
+}
+
+public extension PopupPaddingConfigurable {
+    func popupHorizontalPadding(_ value: CGFloat) -> Self {
+        padding(.horizontal, value)
+    }
+
+    func popupTopPadding(_ value: CGFloat) -> Self {
+        padding(.top, value)
+    }
+
+    func popupBottomPadding(_ value: CGFloat) -> Self {
+        padding(.bottom, value)
+    }
+}
+
+public extension PopupSizingConfigurable where Self: PopupSafeAreaConfigurable {
+    func heightMode(_ mode: PopupHeightMode) -> Self {
+        let height: PopupDimension = switch mode {
+        case .auto: .content
+        case let .fixed(value): .fixed(value)
+        case let .fraction(value): .fraction(value)
+        case .fullscreen: .fill
+        }
+        return size(width: size.widthDimension, height: height)
+    }
+}
+
+private extension PopupSizePolicy {
+    var widthDimension: PopupDimension {
+        switch self {
+        case .content:
+            .content
+        case let .dimensions(width, _):
+            width
+        }
     }
 }
