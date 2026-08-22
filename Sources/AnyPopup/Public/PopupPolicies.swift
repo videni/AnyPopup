@@ -1,5 +1,36 @@
 import SwiftUI
 
+enum PopupConfigurationField: Sendable, Hashable {
+    case size
+    case corners
+    case background
+    case backdrop
+    case insertionTransition
+    case removalTransition
+    case outsideInteraction
+    case keyboardAvoidance
+    case stackAppearance
+    case safeArea
+    case drag
+    case detents
+    case sourceAnchor
+    case popupAnchor
+    case offset
+    case screenAvoidance
+}
+
+func inheritPopupDefault<Configuration, Value>(
+    _ field: PopupConfigurationField,
+    explicitFields: Set<PopupConfigurationField>,
+    defaultExplicitFields: Set<PopupConfigurationField>,
+    defaults: Configuration,
+    result: inout Configuration,
+    at keyPath: WritableKeyPath<Configuration, Value>
+) {
+    guard !explicitFields.contains(field), defaultExplicitFields.contains(field) else { return }
+    result[keyPath: keyPath] = defaults[keyPath: keyPath]
+}
+
 public enum PopupDimension: Sendable, Equatable {
     case content
     case fixed(CGFloat)
