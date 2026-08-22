@@ -3,6 +3,30 @@ import XCTest
 @testable import AnyPopup
 
 final class ContainerPopupGeometryTests: XCTestCase {
+    func testTopCanAlignLeadingAndApplyConfiguredOffset() {
+        let frame = ContainerPopupGeometry.top(
+            contentSize: CGSize(width: 380, height: 500),
+            availableFrame: CGRect(x: 0, y: 0, width: 1_000, height: 800),
+            config: TopPopupConfig()
+                .size(width: .fixed(380), height: .fixed(500))
+                .position(horizontal: .leading, offset: CGSize(width: 16, height: 72))
+        )
+
+        XCTAssertEqual(frame, CGRect(x: 16, y: 72, width: 380, height: 500))
+    }
+
+    func testBottomCanAlignTrailingAndApplyConfiguredOffset() {
+        let frame = ContainerPopupGeometry.bottom(
+            contentSize: CGSize(width: 300, height: 200),
+            availableFrame: CGRect(x: 10, y: 20, width: 800, height: 600),
+            config: BottomPopupConfig()
+                .size(width: .fixed(300), height: .fixed(200))
+                .position(horizontal: .trailing, offset: CGSize(width: -12, height: -8))
+        )
+
+        XCTAssertEqual(frame, CGRect(x: 498, y: 412, width: 300, height: 200))
+    }
+
     func testCenterFrameUsesVisibleContainer() {
         let frame = ContainerPopupGeometry.center(
             contentSize: CGSize(width: 400, height: 300),

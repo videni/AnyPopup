@@ -18,6 +18,8 @@ enum PopupConfigurationField: Sendable, Hashable {
     case popupAnchor
     case offset
     case screenAvoidance
+    case horizontalAlignment
+    case containerOffset
 }
 
 func inheritPopupDefault<Configuration, Value>(
@@ -119,6 +121,12 @@ public enum PopupDragDirection: Sendable, Equatable {
     case down
 }
 
+public enum PopupHorizontalAlignment: Sendable, Equatable {
+    case leading
+    case center
+    case trailing
+}
+
 public struct DragPolicy: Sendable, Equatable {
     public var isEnabled: Bool
     public var direction: PopupDragDirection
@@ -174,6 +182,29 @@ public struct ScreenAvoidancePolicy: Sendable, Equatable {
 
 public protocol PopupSizingConfigurable: PopupConfiguration {
     var size: PopupSizePolicy { get set }
+}
+
+public protocol PopupPositionConfigurable: PopupConfiguration {
+    var horizontalAlignment: PopupHorizontalAlignment { get set }
+    var containerOffset: CGSize { get set }
+}
+
+public extension PopupPositionConfigurable {
+    func position(
+        horizontal alignment: PopupHorizontalAlignment,
+        offset: CGSize = .zero
+    ) -> Self {
+        var copy = self
+        copy.horizontalAlignment = alignment
+        copy.containerOffset = offset
+        return copy
+    }
+
+    func offset(x: CGFloat, y: CGFloat) -> Self {
+        var copy = self
+        copy.containerOffset = CGSize(width: x, height: y)
+        return copy
+    }
 }
 
 public protocol PopupPaddingConfigurable: PopupConfiguration {

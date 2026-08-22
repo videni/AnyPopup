@@ -6,6 +6,7 @@ public struct TopPopupConfig: PopupConfiguration,
     PopupVisualConfigurable,
     PopupTransitionConfigurable,
     PopupOutsideInteractionConfigurable,
+    PopupPositionConfigurable,
     PopupDetentConfigurable,
     PopupSafeAreaConfigurable,
     PopupDragConfigurable,
@@ -20,6 +21,8 @@ public struct TopPopupConfig: PopupConfiguration,
     public var insertionTransition: PopupTransition { didSet { explicitFields.insert(.insertionTransition) } }
     public var removalTransition: PopupTransition { didSet { explicitFields.insert(.removalTransition) } }
     public var outsideInteraction: OutsideInteractionPolicy { didSet { explicitFields.insert(.outsideInteraction) } }
+    public var horizontalAlignment: PopupHorizontalAlignment { didSet { explicitFields.insert(.horizontalAlignment) } }
+    public var containerOffset: CGSize { didSet { explicitFields.insert(.containerOffset) } }
     public var safeArea: PopupSafeAreaPolicy { didSet { explicitFields.insert(.safeArea) } }
     public var drag: DragPolicy { didSet { explicitFields.insert(.drag) } }
     public var detents: [PopupDetent] { didSet { explicitFields.insert(.detents) } }
@@ -34,6 +37,8 @@ public struct TopPopupConfig: PopupConfiguration,
         insertionTransition = .move(from: .top)
         removalTransition = .move(to: .top)
         outsideInteraction = .consume
+        horizontalAlignment = .center
+        containerOffset = .zero
         safeArea = .contained
         drag = DragPolicy(direction: .up)
         detents = [.large, .fullscreen]
@@ -63,6 +68,8 @@ extension TopPopupConfig {
         inherit(.insertionTransition, defaults: defaults, result: &result, at: \.insertionTransition)
         inherit(.removalTransition, defaults: defaults, result: &result, at: \.removalTransition)
         inherit(.outsideInteraction, defaults: defaults, result: &result, at: \.outsideInteraction)
+        inherit(.horizontalAlignment, defaults: defaults, result: &result, at: \.horizontalAlignment)
+        inherit(.containerOffset, defaults: defaults, result: &result, at: \.containerOffset)
         inherit(.safeArea, defaults: defaults, result: &result, at: \.safeArea)
         inherit(.drag, defaults: defaults, result: &result, at: \.drag)
         inherit(.detents, defaults: defaults, result: &result, at: \.detents)

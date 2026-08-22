@@ -6,6 +6,7 @@ public struct CenterPopupConfig: PopupConfiguration,
     PopupVisualConfigurable,
     PopupTransitionConfigurable,
     PopupOutsideInteractionConfigurable,
+    PopupPositionConfigurable,
     PopupStackAppearanceConfigurable {
     private var explicitFields: Set<PopupConfigurationField> = []
 
@@ -17,6 +18,8 @@ public struct CenterPopupConfig: PopupConfiguration,
     public var insertionTransition: PopupTransition { didSet { explicitFields.insert(.insertionTransition) } }
     public var removalTransition: PopupTransition { didSet { explicitFields.insert(.removalTransition) } }
     public var outsideInteraction: OutsideInteractionPolicy { didSet { explicitFields.insert(.outsideInteraction) } }
+    public var horizontalAlignment: PopupHorizontalAlignment { didSet { explicitFields.insert(.horizontalAlignment) } }
+    public var containerOffset: CGSize { didSet { explicitFields.insert(.containerOffset) } }
     public var keyboardAvoidance: PopupKeyboardAvoidance { didSet { explicitFields.insert(.keyboardAvoidance) } }
     public var stackAppearance: StackAppearance { didSet { explicitFields.insert(.stackAppearance) } }
 
@@ -29,6 +32,8 @@ public struct CenterPopupConfig: PopupConfiguration,
         insertionTransition = .scaleAndOpacity
         removalTransition = .scaleAndOpacity
         outsideInteraction = .consume
+        horizontalAlignment = .center
+        containerOffset = .zero
         keyboardAvoidance = .moveIntoVisibleRegion
         stackAppearance = .flat
     }
@@ -45,6 +50,8 @@ extension CenterPopupConfig {
         inherit(.insertionTransition, defaults: defaults, result: &result, at: \.insertionTransition)
         inherit(.removalTransition, defaults: defaults, result: &result, at: \.removalTransition)
         inherit(.outsideInteraction, defaults: defaults, result: &result, at: \.outsideInteraction)
+        inherit(.horizontalAlignment, defaults: defaults, result: &result, at: \.horizontalAlignment)
+        inherit(.containerOffset, defaults: defaults, result: &result, at: \.containerOffset)
         inherit(.keyboardAvoidance, defaults: defaults, result: &result, at: \.keyboardAvoidance)
         inherit(.stackAppearance, defaults: defaults, result: &result, at: \.stackAppearance)
         return result

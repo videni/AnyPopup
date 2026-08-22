@@ -10,7 +10,9 @@ public enum ContainerPopupGeometry {
             contentSize: contentSize,
             availableFrame: availableFrame,
             sizePolicy: config.size,
-            verticalPosition: .center
+            verticalPosition: .center,
+            horizontalAlignment: config.horizontalAlignment,
+            offset: config.containerOffset
         )
     }
 
@@ -23,7 +25,9 @@ public enum ContainerPopupGeometry {
             contentSize: contentSize,
             availableFrame: availableFrame,
             sizePolicy: config.size,
-            verticalPosition: .top
+            verticalPosition: .top,
+            horizontalAlignment: config.horizontalAlignment,
+            offset: config.containerOffset
         )
     }
 
@@ -36,7 +40,9 @@ public enum ContainerPopupGeometry {
             contentSize: contentSize,
             availableFrame: availableFrame,
             sizePolicy: config.size,
-            verticalPosition: .bottom
+            verticalPosition: .bottom,
+            horizontalAlignment: config.horizontalAlignment,
+            offset: config.containerOffset
         )
     }
 }
@@ -95,7 +101,9 @@ private extension ContainerPopupGeometry {
         contentSize: CGSize,
         availableFrame: CGRect,
         sizePolicy: PopupSizePolicy,
-        verticalPosition: VerticalPosition
+        verticalPosition: VerticalPosition,
+        horizontalAlignment: PopupHorizontalAlignment,
+        offset: CGSize
     ) -> CGRect {
         let size = resolvedSize(
             contentSize: contentSize,
@@ -113,9 +121,14 @@ private extension ContainerPopupGeometry {
             originY = availableFrame.maxY - size.height
         }
 
+        let originX: CGFloat = switch horizontalAlignment {
+        case .leading: availableFrame.minX
+        case .center: availableFrame.midX - size.width / 2
+        case .trailing: availableFrame.maxX - size.width
+        }
         return CGRect(
-            x: availableFrame.midX - size.width / 2,
-            y: originY,
+            x: originX + offset.width,
+            y: originY + offset.height,
             width: size.width,
             height: size.height
         )
