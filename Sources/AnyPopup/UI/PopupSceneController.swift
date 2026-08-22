@@ -18,9 +18,11 @@ public final class PopupSceneController {
     private weak var windowScene: UIWindowScene?
     private weak var previousKeyWindow: UIWindow?
     private let keyboardObserver: PopupKeyboardObserver
+    private let systemPresentationHost: PopupUIKitSystemPresentationHost
     private var defaults: PopupDefaults
     private var cancellables: Set<AnyCancellable> = []
     private var hasStarted = false
+    private var isSystemPresentationActive = false
 
     public init(
         windowScene: UIWindowScene,
@@ -39,10 +41,8 @@ public final class PopupSceneController {
         popupStack = PopupStack(id: popupStackID)
         window = PopupWindow(windowScene: windowScene, interactionMap: interactionMap)
         keyboardObserver = PopupKeyboardObserver()
-        let presentationHost = PopupUIKitSystemPresentationHost(
-            windowScene: windowScene,
-            popupWindow: window
-        )
+        let presentationHost = PopupUIKitSystemPresentationHost(windowScene: windowScene)
+        systemPresentationHost = presentationHost
         systemPresentationCoordinator = SystemPresentationCoordinator(host: presentationHost)
     }
 
@@ -111,13 +111,20 @@ public final class PopupSceneController {
             @escaping SystemPresentationCoordinator.Completion
         ) -> Void
     ) async -> PopupSystemPresentationOutcome {
-        await systemPresentationCoordinator.perform { [weak self] completion in
-            guard let presenter = self?.window.rootViewController else {
+        isSystemPresentationActive = true
+        let outcome = await systemPresentationCoordinator.perform { [weak self] completion in
+            guard let presenter = self?.systemPresentationHost.presenter else {
                 completion()
                 return
             }
             start(presenter, completion)
         }
+        isSystemPresentationActive = false
+        updateKeyWindow(
+            hasVisualContent: !popupStack.popups.isEmpty
+                || !popupStack.dismissalCoordinator.snapshots.isEmpty
+        )
+        return outcome
     }
 
     public func disconnect() {
@@ -318,6 +325,7 @@ private extension PopupSceneController {
 
     func updateKeyWindow(hasVisualContent: Bool) {
         guard let windowScene else { return }
+        guard !isSystemPresentationActive else { return }
         if hasVisualContent {
             if !window.isKeyWindow {
                 previousKeyWindow = windowScene.windows.first(where: {

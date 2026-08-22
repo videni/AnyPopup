@@ -50,6 +50,13 @@ public enum DragResolution: Sendable, Equatable {
 }
 
 public enum DragController {
+    static func localStartLocation(
+        globalLocation: CGFloat,
+        popupFrame: CGRect
+    ) -> CGFloat {
+        globalLocation - popupFrame.minY
+    }
+
     public static func isValidStart(
         location: CGFloat,
         extent: CGFloat,
@@ -89,7 +96,7 @@ public enum DragController {
         let threshold = CGFloat(min(max(configuration.dismissalThreshold, 0), 1))
         let outwardProgress = max(
             0,
-            projectedTranslation * configuration.edge.outwardMultiplier / extent
+            projectedTranslation * configuration.edge.outwardMultiplier / max(1, currentHeight)
         )
         if outwardProgress >= threshold {
             return .dismiss

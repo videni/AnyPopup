@@ -3,6 +3,12 @@ import XCTest
 @testable import AnyPopup
 
 final class PopupConfigurationTests: XCTestCase {
+    func testAnchoredPopupCanLeaveChromeToPopupBody() {
+        let config = AnchoredPopupConfig().background(.none)
+
+        XCTAssertEqual(config.background, .none)
+    }
+
     func testCenterBuiltInConfigurationIsComplete() {
         let presentation = ContainerPopupConfig.center().defaultPresentation
 

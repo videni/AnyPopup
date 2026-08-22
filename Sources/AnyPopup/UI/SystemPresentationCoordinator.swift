@@ -91,23 +91,34 @@ import UIKit
 @MainActor
 final class PopupUIKitSystemPresentationHost: PopupSystemPresentationHosting {
     private weak var windowScene: UIWindowScene?
-    private weak var popupWindow: UIWindow?
-    private weak var previousKeyWindow: UIWindow?
+    private var presentationWindow: UIWindow?
 
-    init(windowScene: UIWindowScene, popupWindow: UIWindow) {
+    private(set) var presenter: UIViewController?
+
+    init(windowScene: UIWindowScene) {
         self.windowScene = windowScene
-        self.popupWindow = popupWindow
     }
 
     func beginSystemPresentation() {
-        guard let popupWindow, let windowScene else { return }
-        previousKeyWindow = windowScene.windows.first(where: { $0.isKeyWindow })
-        popupWindow.makeKey()
+        guard let windowScene else { return }
+        let window = UIWindow(windowScene: windowScene)
+        window.windowLevel = UIWindow.Level(rawValue: UIWindow.Level.alert.rawValue + 1)
+        window.backgroundColor = .clear
+
+        let presenter = UIViewController()
+        presenter.view.backgroundColor = .clear
+        window.rootViewController = presenter
+        window.makeKeyAndVisible()
+
+        self.presenter = presenter
+        presentationWindow = window
     }
 
     func endSystemPresentation() {
-        previousKeyWindow?.makeKey()
-        previousKeyWindow = nil
+        presentationWindow?.isHidden = true
+        presentationWindow?.rootViewController = nil
+        presentationWindow = nil
+        presenter = nil
     }
 }
 

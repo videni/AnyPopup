@@ -41,6 +41,31 @@ final class DragControllerTests: XCTestCase {
         XCTAssertEqual(result, .dismiss)
     }
 
+    func testDismissalThresholdUsesPopupHeightInsteadOfScreenHeight() {
+        let result = DragController.resolve(
+            translation: 150,
+            velocity: 0,
+            extent: 1_000,
+            currentHeight: 400,
+            contentHeight: 400,
+            configuration: .bottom(dismissalThreshold: 1.0 / 3.0)
+        )
+
+        XCTAssertEqual(result, .dismiss)
+    }
+
+    func testGlobalGestureStartConvertsToPopupLocalCoordinates() {
+        let popupFrame = CGRect(x: 0, y: 300, width: 500, height: 400)
+
+        XCTAssertEqual(
+            DragController.localStartLocation(
+                globalLocation: 340,
+                popupFrame: popupFrame
+            ),
+            40
+        )
+    }
+
     func testDisabledDragAlwaysCancels() {
         let result = DragController.resolve(
             translation: 900,

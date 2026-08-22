@@ -25,6 +25,28 @@ final class PopupPresentationResolverTests: XCTestCase {
         XCTAssertNil(presentation.anchoredGeometry)
     }
 
+    func testBottomIgnoringBottomSafeAreaTouchesContainerBottom() {
+        let environment = PopupEnvironment(
+            containerSize: CGSize(width: 500, height: 800),
+            safeArea: EdgeInsets(top: 24, leading: 0, bottom: 20, trailing: 0),
+            keyboardOcclusionHeight: 0,
+            accessibilityReduceMotion: false
+        )
+        let config = ContainerPopupConfig.bottom(
+            BottomPopupConfig()
+                .size(width: .fill, height: .fraction(0.85))
+                .ignoreSafeArea(edges: .bottom)
+        )
+
+        let presentation = PopupPresentationResolver.resolve(
+            config: config,
+            environment: environment,
+            contentSize: CGSize(width: 500, height: 300)
+        )
+
+        XCTAssertEqual(presentation.frame.maxY, environment.containerSize.height)
+    }
+
     func testCenterMovesIntoKeyboardVisibleRegion() {
         let environment = PopupEnvironment(
             containerSize: CGSize(width: 1_000, height: 800),

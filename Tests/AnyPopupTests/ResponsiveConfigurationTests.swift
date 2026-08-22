@@ -89,6 +89,29 @@ final class ResponsiveConfigurationTests: XCTestCase {
         XCTAssertEqual(resolved.kind, .bottom)
         XCTAssertEqual(resolved.matchedRuleIndices, [0, 1])
     }
+
+    func testResolvedBranchOwnsItsDismissalTransition() {
+        let config = ContainerPopupConfig.center(
+            CenterPopupConfig().transition(.scaleAndOpacity)
+        )
+        .when(
+            .containerWidthLessThan(600),
+            use: .bottom(BottomPopupConfig())
+        )
+
+        let regular = config.resolve(in: environment(width: 800))
+        let compact = config.resolve(in: environment(width: 500))
+
+        guard case let .center(center) = regular.presentation else {
+            return XCTFail("Expected center presentation")
+        }
+        guard case let .bottom(bottom) = compact.presentation else {
+            return XCTFail("Expected bottom presentation")
+        }
+
+        XCTAssertEqual(center.removalTransition, .scaleAndOpacity)
+        XCTAssertEqual(bottom.removalTransition, .move(to: .bottom))
+    }
 }
 
 private extension ResponsiveConfigurationTests {

@@ -56,8 +56,6 @@ public struct PopupView: View {
             Double(topIndex),
             dismissalSnapshots.map(\.presentation.zIndex).max() ?? 0
         )
-        let layoutAnimation = resolvedLayoutAnimation(for: inputs)
-
         PopupLayout(
             inputs: inputs,
             environment: environment,
@@ -105,10 +103,13 @@ public struct PopupView: View {
                     )
                     .modifier(PopupChromeModifier(
                         chrome: chrome,
-                        stackOverlayOpacity: appearance.overlayOpacity
+                        stackOverlayOpacity: appearance.overlayOpacity,
+                        fillsResolvedFrame: PopupRenderSizingPolicy.fillsResolvedFrame(
+                            for: popup.configuration
+                        )
                     ))
                     .opacity(appearance.opacity)
-                    .gesture(
+                    .simultaneousGesture(
                         verticalDragGesture(
                             popup: popup,
                             configuration: verticalConfiguration
@@ -129,7 +130,11 @@ public struct PopupView: View {
                         snapshot.presentation.anchoredGeometry
                     )
                     .modifier(PopupChromeModifier(
-                        chrome: PopupChrome(snapshot.presentation)
+                        chrome: PopupChrome(snapshot.presentation),
+                        fillsResolvedFrame: PopupRenderSizingPolicy.fillsResolvedFrame(
+                            for: snapshot.popup.configuration
+                        ),
+                        renderRole: .dismissalSnapshot
                     ))
                     .opacity(snapshot.presentation.opacity)
                     .modifier(PopupRemovalEffect(
@@ -153,7 +158,6 @@ public struct PopupView: View {
             height: environment.containerSize.height
         )
         .clipped()
-        .animation(layoutAnimation, value: environment)
         .animation(
             environment.accessibilityReduceMotion ? nil : .easeInOut(duration: 0.3),
             value: popups.map(\.id)
@@ -174,6 +178,9 @@ public struct PopupView: View {
             verticalInteractionStates = verticalInteractionStates.filter {
                 activeIDs.contains($0.key)
             }
+        }
+        .onChange(of: environment.containerSize) {
+            verticalInteractionStates.removeAll()
         }
         .onDisappear {
             dismissalCoordinator.configure(
@@ -254,17 +261,6 @@ private extension PopupView {
                 defaults: defaults.anchored
             ).configuration.outsideInteraction
         }
-    }
-
-    func resolvedLayoutAnimation(for inputs: [PopupLayoutInput]) -> Animation? {
-        guard !environment.accessibilityReduceMotion else { return nil }
-        let transition = inputs.reversed().compactMap { input -> PopupTransition? in
-            guard case let .container(config) = input.configuration,
-                config.layoutTransition != .identity else { return nil }
-            return config.layoutTransition
-        }.first
-        guard transition != nil else { return nil }
-        return .easeInOut(duration: 0.3)
     }
 
     func routeOutsideInteraction(_ point: CGPoint) {
@@ -372,7 +368,7 @@ private extension PopupView {
         popup: AnyPopup,
         configuration: ResolvedVerticalPopupConfiguration?
     ) -> some Gesture {
-        DragGesture(minimumDistance: 5)
+        DragGesture(minimumDistance: 5, coordinateSpace: .global)
             .onChanged { value in
                 updateVerticalDrag(
                     popup: popup,
@@ -403,8 +399,12 @@ private extension PopupView {
         var state = verticalInteractionStates[popup.id] ?? PopupVerticalInteractionState()
         if !state.isTracking {
             let startHeight = state.heightOverride ?? presentation.frame.height
+            let localStartLocation = DragController.localStartLocation(
+                globalLocation: value.startLocation.y,
+                popupFrame: presentation.frame
+            )
             guard DragController.isValidStart(
-                location: value.startLocation.y,
+                location: localStartLocation,
                 extent: startHeight,
                 configuration: configuration.dragConfiguration
             ) else { return }
@@ -520,34 +520,63 @@ private struct PopupChrome {
 private struct PopupChromeModifier: ViewModifier {
     let chrome: PopupChrome
     var stackOverlayOpacity: Double? = nil
+    let fillsResolvedFrame: Bool
+    var renderRole: PopupRenderRole = .live
 
+    @ViewBuilder
     func body(content: Content) -> some View {
-        content
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(PopupBackgroundView(background: chrome.background))
-            .overlay(
-                Color.black
-                    .opacity(stackOverlayOpacity ?? chrome.stackOverlayOpacity)
-                    .allowsHitTesting(false)
-            )
-            .clipShape(
-                UnevenRoundedRectangle(
-                    cornerRadii: cornerRadii,
-                    style: .continuous
+        let transitionPlan = renderRole.transitionPlan(
+            insertion: chrome.insertionTransition,
+            removal: chrome.removalTransition
+        )
+        switch chrome.background {
+        case .none:
+            if fillsResolvedFrame {
+                content
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .transition(
+                        .asymmetric(
+                            insertion: transitionPlan.insertion.anyTransition,
+                            removal: transitionPlan.removal.anyTransition
+                        )
+                    )
+            } else {
+                content
+                    .transition(
+                        .asymmetric(
+                            insertion: transitionPlan.insertion.anyTransition,
+                            removal: transitionPlan.removal.anyTransition
+                        )
+                    )
+            }
+        case .color:
+            content
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(PopupBackgroundView(background: chrome.background))
+                .overlay(
+                    Color.black
+                        .opacity(stackOverlayOpacity ?? chrome.stackOverlayOpacity)
+                        .allowsHitTesting(false)
                 )
-            )
-            .contentShape(
-                UnevenRoundedRectangle(
-                    cornerRadii: cornerRadii,
-                    style: .continuous
+                .clipShape(
+                    UnevenRoundedRectangle(
+                        cornerRadii: cornerRadii,
+                        style: .continuous
+                    )
                 )
-            )
-            .transition(
-                .asymmetric(
-                    insertion: chrome.insertionTransition.anyTransition,
-                    removal: chrome.removalTransition.anyTransition
+                .contentShape(
+                    UnevenRoundedRectangle(
+                        cornerRadii: cornerRadii,
+                        style: .continuous
+                    )
                 )
-            )
+                .transition(
+                    .asymmetric(
+                        insertion: transitionPlan.insertion.anyTransition,
+                        removal: transitionPlan.removal.anyTransition
+                    )
+                )
+        }
     }
 
     private var cornerRadii: RectangleCornerRadii {
@@ -562,12 +591,47 @@ private struct PopupChromeModifier: ViewModifier {
     }
 }
 
+enum PopupRenderSizingPolicy {
+    static func fillsResolvedFrame(for configuration: AnyPopupConfiguration) -> Bool {
+        switch configuration {
+        case .container:
+            true
+        case .anchored:
+            false
+        }
+    }
+}
+
+struct PopupRenderTransitionPlan: Equatable {
+    let insertion: PopupTransition
+    let removal: PopupTransition
+}
+
+enum PopupRenderRole {
+    case live
+    case dismissalSnapshot
+
+    func transitionPlan(
+        insertion: PopupTransition,
+        removal: PopupTransition
+    ) -> PopupRenderTransitionPlan {
+        switch self {
+        case .live:
+            PopupRenderTransitionPlan(insertion: insertion, removal: .identity)
+        case .dismissalSnapshot:
+            PopupRenderTransitionPlan(insertion: .identity, removal: .identity)
+        }
+    }
+}
+
 private struct PopupBackgroundView: View {
     let background: PopupBackground
 
     @ViewBuilder
     var body: some View {
         switch background {
+        case .none:
+            EmptyView()
         case let .color(color):
             color
         }

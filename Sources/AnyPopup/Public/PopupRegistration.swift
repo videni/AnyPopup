@@ -20,7 +20,7 @@ public struct PopupAnchorRegistrationContext: Sendable, Equatable {
 }
 
 public extension View {
-    func popupAnchorRegistrationContext(_ context: PopupAnchorRegistrationContext) -> some View {
+    func popupAnchorRegistrationContext(_ context: PopupAnchorRegistrationContext?) -> some View {
         environment(\.popupAnchorRegistrationContext, context)
     }
 
@@ -46,36 +46,40 @@ private extension EnvironmentValues {
     }
 }
 
-private struct PopupAnchorFramePreferenceKey: PreferenceKey {
-    static let defaultValue = CGRect.zero
-
-    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
-        value = nextValue()
-    }
-}
-
 private struct PopupAnchorRegistrationModifier: ViewModifier {
     @Environment(\.popupAnchorRegistrationContext) private var context
+    @State private var latestFrame: CGRect?
 
     let anchorID: String
     let popupStackID: PopupStackID?
 
     func body(content: Content) -> some View {
         content
-            .background(
-                GeometryReader { proxy in
-                    Color.clear.preference(
-                        key: PopupAnchorFramePreferenceKey.self,
-                        value: proxy.frame(in: .global)
-                    )
+            .onGeometryChange(for: CGRect.self) { proxy in
+                proxy.frame(in: .global)
+            } action: { frame in
+                guard PopupGeometryValidation.isValidAnchorFrame(frame) else { return }
+                latestFrame = frame
+                updateFrame(frame, context: context)
+            }
+            .onChange(of: context) { oldContext, newContext in
+                if let oldContext {
+                    removeFrame(context: oldContext)
                 }
-            )
-            .onPreferenceChange(PopupAnchorFramePreferenceKey.self, perform: updateFrame)
-            .onDisappear(perform: removeFrame)
+                guard let latestFrame else { return }
+                updateFrame(latestFrame, context: newContext)
+            }
+            .onDisappear {
+                guard let context else { return }
+                removeFrame(context: context)
+            }
     }
 
     @MainActor
-    private func updateFrame(_ frame: CGRect) {
+    private func updateFrame(
+        _ frame: CGRect,
+        context: PopupAnchorRegistrationContext?
+    ) {
         guard let context else { return }
         _ = AnchorRegistry.shared.setFrame(
             frame,
@@ -86,8 +90,7 @@ private struct PopupAnchorRegistrationModifier: ViewModifier {
     }
 
     @MainActor
-    private func removeFrame() {
-        guard let context else { return }
+    private func removeFrame(context: PopupAnchorRegistrationContext) {
         AnchorRegistry.shared.removeFrame(for: key(context))
     }
 

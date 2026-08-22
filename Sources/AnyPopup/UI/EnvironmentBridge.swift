@@ -52,6 +52,18 @@ public final class PopupEnvironmentBridge: ObservableObject {
     }
 }
 
+enum PopupSceneGeometry {
+    static func fullContainerSize(
+        contentSize: CGSize,
+        safeArea: EdgeInsets
+    ) -> CGSize {
+        CGSize(
+            width: contentSize.width + safeArea.leading + safeArea.trailing,
+            height: contentSize.height + safeArea.top + safeArea.bottom
+        )
+    }
+}
+
 #if canImport(UIKit)
 import UIKit
 
@@ -66,18 +78,23 @@ struct PopupSceneRootView: View {
 
     var body: some View {
         GeometryReader { proxy in
+            let containerSize = PopupSceneGeometry.fullContainerSize(
+                contentSize: proxy.size,
+                safeArea: proxy.safeAreaInsets
+            )
             PopupView(
                 popupStack: popupStack,
                 sceneSessionID: sceneSessionID,
                 environment: environmentBridge.popupEnvironment(
-                    containerSize: proxy.size,
+                    containerSize: containerSize,
                     safeArea: proxy.safeAreaInsets,
                     keyboardOcclusionHeight: keyboardObserver.occlusionHeight
                 ),
                 defaults: defaults,
                 interactionMap: interactionMap
             )
-            .environment(\.popupContainerSize, proxy.size)
+            .environment(\.popupContainerSize, containerSize)
+            .ignoresSafeArea()
         }
         .environment(\.locale, environmentBridge.locale)
         .environment(\.layoutDirection, environmentBridge.layoutDirection)

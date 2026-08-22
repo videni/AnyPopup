@@ -4,6 +4,15 @@ import XCTest
 
 @MainActor
 final class EnvironmentBridgeTests: XCTestCase {
+    func testSceneGeometryAddsSafeAreaBackToFullContainerSize() {
+        let size = PopupSceneGeometry.fullContainerSize(
+            contentSize: CGSize(width: 780, height: 550),
+            safeArea: EdgeInsets(top: 20, leading: 10, bottom: 30, trailing: 10)
+        )
+
+        XCTAssertEqual(size, CGSize(width: 800, height: 600))
+    }
+
     func testBridgeSynchronizesSwiftUIEnvironmentValues() {
         let bridge = PopupEnvironmentBridge()
 

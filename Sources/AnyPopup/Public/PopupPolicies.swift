@@ -79,6 +79,8 @@ public struct PopupCorners: Sendable, Equatable {
 }
 
 public enum PopupBackground: Sendable, Equatable {
+    /// Popup body owns its background, clipping shape, content shape, and shadow.
+    case none
     case color(Color)
 }
 
