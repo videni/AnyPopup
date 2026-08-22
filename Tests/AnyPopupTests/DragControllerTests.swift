@@ -139,6 +139,18 @@ final class DragControllerTests: XCTestCase {
         XCTAssertEqual(bottom.dragConfiguration.edge, .bottom)
         XCTAssertEqual(top.dragConfiguration.detents, top.detents)
         XCTAssertEqual(bottom.dragConfiguration.detents, bottom.detents)
+        XCTAssertEqual(top.dragConfiguration.activationArea, top.drag.activationArea)
+        XCTAssertEqual(bottom.dragConfiguration.activationArea, bottom.drag.activationArea)
+    }
+
+    func testGestureMustStartInsideAttachedHandleArea() {
+        let bottom = PopupDragConfiguration.bottom(activationArea: 30)
+        let top = PopupDragConfiguration.top(activationArea: 30)
+
+        XCTAssertTrue(DragController.isValidStart(location: 20, extent: 400, configuration: bottom))
+        XCTAssertFalse(DragController.isValidStart(location: 40, extent: 400, configuration: bottom))
+        XCTAssertTrue(DragController.isValidStart(location: 380, extent: 400, configuration: top))
+        XCTAssertFalse(DragController.isValidStart(location: 360, extent: 400, configuration: top))
     }
 
     func testNonFiniteGestureCancels() {

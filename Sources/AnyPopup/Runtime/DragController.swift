@@ -8,17 +8,20 @@ public enum PopupVerticalEdge: Sendable, Equatable {
 public struct PopupDragConfiguration: Sendable, Equatable {
     public let edge: PopupVerticalEdge
     public let isEnabled: Bool
+    public let activationArea: CGFloat
     public let dismissalThreshold: Double
     public let detents: [PopupDetent]
 
     public static func top(
         isEnabled: Bool = true,
+        activationArea: CGFloat = 30,
         dismissalThreshold: Double = 1.0 / 3.0,
         detents: [PopupDetent] = []
     ) -> Self {
         Self(
             edge: .top,
             isEnabled: isEnabled,
+            activationArea: activationArea,
             dismissalThreshold: dismissalThreshold,
             detents: detents
         )
@@ -26,12 +29,14 @@ public struct PopupDragConfiguration: Sendable, Equatable {
 
     public static func bottom(
         isEnabled: Bool = true,
+        activationArea: CGFloat = 30,
         dismissalThreshold: Double = 1.0 / 3.0,
         detents: [PopupDetent] = []
     ) -> Self {
         Self(
             edge: .bottom,
             isEnabled: isEnabled,
+            activationArea: activationArea,
             dismissalThreshold: dismissalThreshold,
             detents: detents
         )
@@ -45,6 +50,24 @@ public enum DragResolution: Sendable, Equatable {
 }
 
 public enum DragController {
+    public static func isValidStart(
+        location: CGFloat,
+        extent: CGFloat,
+        configuration: PopupDragConfiguration
+    ) -> Bool {
+        guard configuration.isEnabled,
+            location.isFinite,
+            extent.isFinite,
+            extent > 0 else { return false }
+        let activationArea = min(max(0, configuration.activationArea), extent)
+        switch configuration.edge {
+        case .top:
+            return location >= extent - activationArea
+        case .bottom:
+            return location <= activationArea
+        }
+    }
+
     public static func resolve(
         translation: CGFloat,
         velocity: CGFloat,

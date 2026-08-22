@@ -4,6 +4,7 @@ public struct PopupView: View {
     @ObservedObject private var popupStack: PopupStack
     @ObservedObject private var anchorRegistry: AnchorRegistry
     @ObservedObject private var dismissalCoordinator: PopupDismissalCoordinator
+    @State private var verticalInteractionStates: [PopupID: PopupVerticalInteractionState] = [:]
 
     public let interactionMap: PopupInteractionMap
 
@@ -36,7 +37,13 @@ public struct PopupView: View {
     public var body: some View {
         let popups = popupStack.popups
         let dismissalSnapshots = dismissalCoordinator.snapshots
-        let inputs = popups.map(layoutInput)
+        let stackAppearances = resolvedStackAppearances(for: popups)
+        let inputs = popups.map { popup in
+            layoutInput(
+                popup,
+                stackAppearance: stackAppearances[popup.id] ?? .identity
+            )
+        }
         let topIndex = max(0, popups.count - 1)
         let topOutsideInteraction = inputs.reversed().compactMap(
             resolvedOutsideInteraction
@@ -84,8 +91,26 @@ public struct PopupView: View {
 
             ForEach(Array(popups.enumerated()), id: \.element.id) { index, popup in
                 let chrome = resolvedChrome(for: popup.configuration)
+                let appearance = stackAppearances[popup.id] ?? .identity
+                let verticalConfiguration = resolvedVerticalConfiguration(
+                    for: popup.configuration
+                )
                 popup.body
-                    .modifier(PopupChromeModifier(chrome: chrome))
+                    .modifier(PopupChromeModifier(
+                        chrome: chrome,
+                        stackOverlayOpacity: appearance.overlayOpacity
+                    ))
+                    .opacity(appearance.opacity)
+                    .gesture(
+                        verticalDragGesture(
+                            popup: popup,
+                            configuration: verticalConfiguration
+                        ),
+                        including: index == topIndex
+                            && verticalConfiguration?.dragConfiguration.isEnabled == true
+                            ? .all
+                            : .none
+                    )
                     .popupLayoutRole(.popup(popup.id))
                     .zIndex(Double(index * 3 + 2))
             }
@@ -95,6 +120,7 @@ public struct PopupView: View {
                     .modifier(PopupChromeModifier(
                         chrome: PopupChrome(snapshot.presentation)
                     ))
+                    .opacity(snapshot.presentation.opacity)
                     .modifier(PopupRemovalEffect(
                         transition: snapshot.presentation.removalTransition,
                         isDeparting: snapshot.isDeparting,
@@ -133,6 +159,11 @@ public struct PopupView: View {
                 reduceMotion: reduceMotion
             )
         }
+        .onChange(of: popups.map(\.id)) { _, activeIDs in
+            verticalInteractionStates = verticalInteractionStates.filter {
+                activeIDs.contains($0.key)
+            }
+        }
         .onDisappear {
             dismissalCoordinator.configure(
                 isRenderingActive: false,
@@ -143,11 +174,18 @@ public struct PopupView: View {
 }
 
 private extension PopupView {
-    func layoutInput(_ popup: AnyPopup) -> PopupLayoutInput {
-        PopupLayoutInput(
+    func layoutInput(
+        _ popup: AnyPopup,
+        stackAppearance: PopupStackItemAppearance
+    ) -> PopupLayoutInput {
+        let interactionState = verticalInteractionStates[popup.id]
+        return PopupLayoutInput(
             id: popup.id,
             configuration: popup.configuration,
-            anchorFrame: anchorFrame(for: popup)
+            anchorFrame: anchorFrame(for: popup),
+            heightOverride: interactionState?.heightOverride,
+            verticalTranslation: interactionState?.translation ?? 0,
+            stackAppearance: stackAppearance
         )
     }
 
@@ -259,12 +297,194 @@ private extension PopupView {
     }
 }
 
+private extension PopupView {
+    func resolvedVerticalConfiguration(
+        for configuration: AnyPopupConfiguration
+    ) -> ResolvedVerticalPopupConfiguration? {
+        guard case let .container(config) = configuration else { return nil }
+        switch config.resolve(in: environment, defaults: defaults).presentation {
+        case .center:
+            return nil
+        case let .top(value):
+            return ResolvedVerticalPopupConfiguration(
+                dragConfiguration: value.dragConfiguration,
+                stackAppearance: value.stackAppearance
+            )
+        case let .bottom(value):
+            return ResolvedVerticalPopupConfiguration(
+                dragConfiguration: value.dragConfiguration,
+                stackAppearance: value.stackAppearance
+            )
+        }
+    }
+
+    func resolvedStackAppearances(
+        for popups: [AnyPopup]
+    ) -> [PopupID: PopupStackItemAppearance] {
+        var result = Dictionary(uniqueKeysWithValues: popups.map {
+            ($0.id, PopupStackItemAppearance.identity)
+        })
+        guard let topPopup = popups.last,
+            let topConfiguration = resolvedVerticalConfiguration(
+                for: topPopup.configuration
+            ) else { return result }
+
+        var group: [(AnyPopup, ResolvedVerticalPopupConfiguration)] = []
+        for popup in popups.reversed() {
+            guard let configuration = resolvedVerticalConfiguration(
+                for: popup.configuration
+            ), configuration.dragConfiguration.edge == topConfiguration.dragConfiguration.edge else {
+                break
+            }
+            group.append((popup, configuration))
+        }
+        group.reverse()
+
+        let translation = verticalInteractionStates[topPopup.id]?.translation ?? 0
+        let outwardTranslation: CGFloat = switch topConfiguration.dragConfiguration.edge {
+        case .top: max(0, -translation)
+        case .bottom: max(0, translation)
+        }
+        let progress = outwardTranslation / max(1, environment.availableHeight)
+        let appearances = topConfiguration.stackAppearance.resolve(
+            popupCount: group.count,
+            edge: topConfiguration.dragConfiguration.edge,
+            activeDismissalProgress: progress
+        )
+        for ((popup, _), appearance) in zip(group, appearances) {
+            result[popup.id] = appearance
+        }
+        return result
+    }
+
+    func verticalDragGesture(
+        popup: AnyPopup,
+        configuration: ResolvedVerticalPopupConfiguration?
+    ) -> some Gesture {
+        DragGesture(minimumDistance: 5)
+            .onChanged { value in
+                updateVerticalDrag(
+                    popup: popup,
+                    configuration: configuration,
+                    value: value
+                )
+            }
+            .onEnded { value in
+                endVerticalDrag(
+                    popup: popup,
+                    configuration: configuration,
+                    value: value
+                )
+            }
+    }
+
+    func updateVerticalDrag(
+        popup: AnyPopup,
+        configuration: ResolvedVerticalPopupConfiguration?,
+        value: DragGesture.Value
+    ) {
+        guard let configuration,
+            configuration.dragConfiguration.isEnabled,
+            let presentation = interactionMap.snapshot().presentations.last(where: {
+                $0.id == popup.id
+            })?.presentation else { return }
+
+        var state = verticalInteractionStates[popup.id] ?? PopupVerticalInteractionState()
+        if !state.isTracking {
+            let startHeight = state.heightOverride ?? presentation.frame.height
+            guard DragController.isValidStart(
+                location: value.startLocation.y,
+                extent: startHeight,
+                configuration: configuration.dragConfiguration
+            ) else { return }
+            state.isTracking = true
+            state.gestureStartHeight = startHeight
+            state.contentHeight = state.contentHeight ?? startHeight
+        }
+        state.translation = constrainedTranslation(
+            value.translation.height,
+            configuration: configuration.dragConfiguration
+        )
+        verticalInteractionStates[popup.id] = state
+    }
+
+    func endVerticalDrag(
+        popup: AnyPopup,
+        configuration: ResolvedVerticalPopupConfiguration?,
+        value: DragGesture.Value
+    ) {
+        guard let configuration,
+            var state = verticalInteractionStates[popup.id],
+            state.isTracking,
+            let currentHeight = state.gestureStartHeight,
+            let contentHeight = state.contentHeight else { return }
+
+        let projectedDelta = value.predictedEndTranslation.height - value.translation.height
+        let velocity = projectedDelta / 0.15
+        let resolution = DragController.resolve(
+            translation: value.translation.height,
+            velocity: velocity,
+            extent: max(1, environment.availableHeight),
+            currentHeight: currentHeight,
+            contentHeight: contentHeight,
+            configuration: configuration.dragConfiguration,
+            largeExtent: environment.availableHeight
+        )
+        state.isTracking = false
+        state.gestureStartHeight = nil
+
+        switch resolution {
+        case .dismiss:
+            _ = popupStack.removePopupAndAbove(popup.id)
+        case .cancel:
+            state.translation = 0
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                verticalInteractionStates[popup.id] = state
+            }
+        case let .snap(height):
+            state.translation = 0
+            state.heightOverride = height
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                verticalInteractionStates[popup.id] = state
+            }
+        }
+    }
+
+    func constrainedTranslation(
+        _ translation: CGFloat,
+        configuration: PopupDragConfiguration
+    ) -> CGFloat {
+        let extent = max(1, environment.availableHeight)
+        guard !configuration.detents.isEmpty else {
+            return switch configuration.edge {
+            case .top: max(-extent, min(0, translation))
+            case .bottom: min(extent, max(0, translation))
+            }
+        }
+        return min(extent, max(-extent, translation))
+    }
+}
+
+private struct ResolvedVerticalPopupConfiguration {
+    let dragConfiguration: PopupDragConfiguration
+    let stackAppearance: StackAppearance
+}
+
+private struct PopupVerticalInteractionState {
+    var heightOverride: CGFloat?
+    var translation: CGFloat = 0
+    var gestureStartHeight: CGFloat?
+    var contentHeight: CGFloat?
+    var isTracking = false
+}
+
 private struct PopupChrome {
     let corners: PopupCorners
     let background: PopupBackground
     let backdrop: BackdropPolicy
     let insertionTransition: PopupTransition
     let removalTransition: PopupTransition
+    let stackOverlayOpacity: Double
 
     init<Config>(_ config: Config) where Config: PopupVisualConfigurable,
         Config: PopupTransitionConfigurable {
@@ -273,6 +493,7 @@ private struct PopupChrome {
         backdrop = config.backdrop
         insertionTransition = config.insertionTransition
         removalTransition = config.removalTransition
+        stackOverlayOpacity = 0
     }
 
     init(_ presentation: PopupPresentation) {
@@ -281,16 +502,23 @@ private struct PopupChrome {
         backdrop = presentation.backdrop
         insertionTransition = presentation.insertionTransition
         removalTransition = presentation.removalTransition
+        stackOverlayOpacity = presentation.stackOverlayOpacity
     }
 }
 
 private struct PopupChromeModifier: ViewModifier {
     let chrome: PopupChrome
+    var stackOverlayOpacity: Double? = nil
 
     func body(content: Content) -> some View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(PopupBackgroundView(background: chrome.background))
+            .overlay(
+                Color.black
+                    .opacity(stackOverlayOpacity ?? chrome.stackOverlayOpacity)
+                    .allowsHitTesting(false)
+            )
             .clipShape(
                 UnevenRoundedRectangle(
                     cornerRadii: cornerRadii,

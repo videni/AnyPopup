@@ -5,6 +5,25 @@ public struct PopupStackItemAppearance: Sendable, Equatable {
     public let opacity: Double
     public let overlayOpacity: Double
     public let zIndex: Double
+
+    public static let identity = Self(
+        transform: .identity,
+        opacity: 1,
+        overlayOpacity: 0,
+        zIndex: 0
+    )
+
+    public init(
+        transform: PopupTransform,
+        opacity: Double,
+        overlayOpacity: Double,
+        zIndex: Double
+    ) {
+        self.transform = transform
+        self.opacity = opacity
+        self.overlayOpacity = overlayOpacity
+        self.zIndex = zIndex
+    }
 }
 
 public extension StackAppearance {

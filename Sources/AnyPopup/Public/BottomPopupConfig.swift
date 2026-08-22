@@ -47,6 +47,7 @@ public extension BottomPopupConfig {
     var dragConfiguration: PopupDragConfiguration {
         .bottom(
             isEnabled: drag.isEnabled,
+            activationArea: drag.activationArea,
             dismissalThreshold: drag.dismissalThreshold,
             detents: detents
         )

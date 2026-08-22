@@ -45,6 +45,7 @@ public extension TopPopupConfig {
     var dragConfiguration: PopupDragConfiguration {
         .top(
             isEnabled: drag.isEnabled,
+            activationArea: drag.activationArea,
             dismissalThreshold: drag.dismissalThreshold,
             detents: detents
         )

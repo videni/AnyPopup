@@ -82,7 +82,11 @@ extension PopupLayoutPlan {
         var failures: [PopupLayoutFailure] = []
 
         for (index, input) in inputs.enumerated() {
-            let contentSize = contentSizes[input.id] ?? .zero
+            var contentSize = contentSizes[input.id] ?? .zero
+            if let heightOverride = input.heightOverride,
+                heightOverride.isFinite {
+                contentSize.height = max(0, heightOverride)
+            }
             switch input.configuration {
             case let .container(config):
                 let presentation = PopupPresentationResolver.resolve(
@@ -92,7 +96,10 @@ extension PopupLayoutPlan {
                     defaults: defaults,
                     zIndex: Double(index)
                 )
-                items.append(PopupLayoutItem(id: input.id, presentation: presentation))
+                items.append(PopupLayoutItem(
+                    id: input.id,
+                    presentation: presentation.applying(input)
+                ))
             case let .anchored(config):
                 do {
                     let presentation = try PopupPresentationResolver.resolve(
@@ -103,7 +110,10 @@ extension PopupLayoutPlan {
                         defaults: defaults,
                         zIndex: Double(index)
                     )
-                    items.append(PopupLayoutItem(id: input.id, presentation: presentation))
+                    items.append(PopupLayoutItem(
+                        id: input.id,
+                        presentation: presentation.applying(input)
+                    ))
                 } catch let error as PopupPresentationError {
                     failures.append(PopupLayoutFailure(id: input.id, error: error))
                 } catch {
@@ -130,6 +140,25 @@ struct PopupLayoutInput: Sendable {
     let id: PopupID
     let configuration: AnyPopupConfiguration
     let anchorFrame: CGRect?
+    let heightOverride: CGFloat?
+    let verticalTranslation: CGFloat
+    let stackAppearance: PopupStackItemAppearance
+
+    init(
+        id: PopupID,
+        configuration: AnyPopupConfiguration,
+        anchorFrame: CGRect?,
+        heightOverride: CGFloat? = nil,
+        verticalTranslation: CGFloat = 0,
+        stackAppearance: PopupStackItemAppearance = .identity
+    ) {
+        self.id = id
+        self.configuration = configuration
+        self.anchorFrame = anchorFrame
+        self.heightOverride = heightOverride
+        self.verticalTranslation = verticalTranslation
+        self.stackAppearance = stackAppearance
+    }
 }
 
 public final class PopupInteractionMap: @unchecked Sendable {

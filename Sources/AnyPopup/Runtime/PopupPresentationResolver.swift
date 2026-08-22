@@ -123,6 +123,7 @@ private extension PopupPresentationResolver {
             frame: frame,
             transform: .identity,
             opacity: 1,
+            stackOverlayOpacity: 0,
             zIndex: zIndex,
             attachedEdges: config.corners.attachedEdges,
             corners: config.corners,
