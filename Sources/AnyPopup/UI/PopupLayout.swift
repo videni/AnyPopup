@@ -215,6 +215,13 @@ public final class PopupInteractionMap: @unchecked Sendable {
         lock.withLock { current }
     }
 
+    func replace(with snapshot: Snapshot) {
+        lock.withLock {
+            dismissalCount = snapshot.isDismissalBlocking ? 1 : 0
+            current = snapshot
+        }
+    }
+
     public func action(
         at point: CGPoint,
         gesture: PopupInteractionGesture = .idle

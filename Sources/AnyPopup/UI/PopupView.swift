@@ -38,6 +38,11 @@ public struct PopupView: View {
         let dismissalSnapshots = dismissalCoordinator.snapshots
         let inputs = popups.map(layoutInput)
         let topIndex = max(0, popups.count - 1)
+        let topOutsideInteraction = inputs.reversed().compactMap(
+            resolvedOutsideInteraction
+        ).first
+        let shieldCapturesTouches = !dismissalSnapshots.isEmpty
+            || topOutsideInteraction != .passThrough
         let shieldLevel = max(
             Double(topIndex),
             dismissalSnapshots.map(\.presentation.zIndex).max() ?? 0
@@ -73,6 +78,7 @@ public struct PopupView: View {
 
             PopupShield(onTap: routeOutsideInteraction)
                 .popupLayoutRole(.shield)
+                .allowsHitTesting(shieldCapturesTouches)
                 .zIndex(shieldLevel * 3 + 1)
 
             ForEach(Array(popups.enumerated()), id: \.element.id) { index, popup in
@@ -169,6 +175,26 @@ private extension PopupView {
             }
         case let .anchored(config):
             PopupChrome(config.applying(defaults: defaults.anchored))
+        }
+    }
+
+    func resolvedOutsideInteraction(
+        for input: PopupLayoutInput
+    ) -> OutsideInteractionPolicy? {
+        switch input.configuration {
+        case let .container(config):
+            return switch config.resolve(in: environment, defaults: defaults).presentation {
+            case let .center(value):
+                value.outsideInteraction
+            case let .top(value):
+                value.outsideInteraction
+            case let .bottom(value):
+                value.outsideInteraction
+            }
+        case let .anchored(config):
+            guard let anchorFrame = input.anchorFrame,
+                PopupGeometryValidation.isValidAnchorFrame(anchorFrame) else { return nil }
+            return config.applying(defaults: defaults.anchored).outsideInteraction
         }
     }
 
