@@ -149,6 +149,23 @@ public enum PopupSystemPresenter {
         ) else { return .unavailable }
         return await controller.performSystemPresentation(start)
     }
+
+    public static func present(
+        _ viewController: UIViewController,
+        popupStackID: PopupStackID = .shared,
+        animated: Bool = true
+    ) async -> PopupSystemPresentationOutcome {
+        await perform(popupStackID: popupStackID) { presenter, completion in
+            guard presenter.presentedViewController == nil else {
+                completion()
+                return
+            }
+
+            let observer = PopupSystemPresentationObserverView(completion: completion)
+            viewController.view.addSubview(observer)
+            presenter.present(viewController, animated: animated)
+        }
+    }
 }
 
 open class AnyPopupSceneDelegate: NSObject, UIWindowSceneDelegate {

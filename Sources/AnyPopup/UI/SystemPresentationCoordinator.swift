@@ -50,6 +50,27 @@ public final class SystemPresentationCoordinator {
     }
 }
 
+@MainActor
+final class SystemPresentationVisibilityLifetime {
+    private var didBecomeVisible = false
+    private var didComplete = false
+    private let completion: @MainActor () -> Void
+
+    init(completion: @escaping @MainActor () -> Void) {
+        self.completion = completion
+    }
+
+    func update(isVisible: Bool) {
+        guard !didComplete else { return }
+        if isVisible {
+            didBecomeVisible = true
+        } else if didBecomeVisible {
+            didComplete = true
+            completion()
+        }
+    }
+}
+
 private extension SystemPresentationCoordinator {
     func complete(id: UUID) {
         guard pending?.id == id else { return }
@@ -87,6 +108,28 @@ final class PopupUIKitSystemPresentationHost: PopupSystemPresentationHosting {
     func endSystemPresentation() {
         previousKeyWindow?.makeKey()
         previousKeyWindow = nil
+    }
+}
+
+@MainActor
+final class PopupSystemPresentationObserverView: UIView {
+    private let lifetime: SystemPresentationVisibilityLifetime
+
+    init(completion: @escaping @MainActor () -> Void) {
+        lifetime = SystemPresentationVisibilityLifetime(completion: completion)
+        super.init(frame: .zero)
+        isUserInteractionEnabled = false
+        isHidden = true
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        nil
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        lifetime.update(isVisible: window != nil)
     }
 }
 #endif

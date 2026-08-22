@@ -66,6 +66,20 @@ final class SystemPresentationCoordinatorTests: XCTestCase {
         XCTAssertEqual(host.beginCount, 1)
         XCTAssertEqual(host.endCount, 1)
     }
+
+    func testPresentationLifetimeCompletesAfterVisibleViewDetachesExactlyOnce() {
+        var completionCount = 0
+        let lifetime = SystemPresentationVisibilityLifetime {
+            completionCount += 1
+        }
+
+        lifetime.update(isVisible: false)
+        lifetime.update(isVisible: true)
+        lifetime.update(isVisible: false)
+        lifetime.update(isVisible: false)
+
+        XCTAssertEqual(completionCount, 1)
+    }
 }
 
 @MainActor
