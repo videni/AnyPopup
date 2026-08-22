@@ -136,28 +136,78 @@ public final class PopupInteractionMap: @unchecked Sendable {
     public struct Snapshot: Sendable, Equatable {
         public let regions: [PopupInteractionRegion<PopupID>]
         public let topPolicy: OutsideInteractionPolicy?
+        public let presentations: [PopupLayoutItem]
+        public let isDismissalBlocking: Bool
 
         public init(
             regions: [PopupInteractionRegion<PopupID>],
-            topPolicy: OutsideInteractionPolicy?
+            topPolicy: OutsideInteractionPolicy?,
+            presentations: [PopupLayoutItem] = [],
+            isDismissalBlocking: Bool = false
         ) {
             self.regions = regions
             self.topPolicy = topPolicy
+            self.presentations = presentations
+            self.isDismissalBlocking = isDismissalBlocking
         }
     }
 
     private let lock = NSLock()
-    private var current = Snapshot(regions: [], topPolicy: nil)
+    private var current = Snapshot(
+        regions: [],
+        topPolicy: nil,
+        presentations: [],
+        isDismissalBlocking: false
+    )
+    private var dismissalCount = 0
 
     public init() {}
 
     public func publish(_ plan: PopupLayoutPlan) {
-        let snapshot = Snapshot(
-            regions: plan.interactionRegions,
-            topPolicy: plan.items.last?.presentation.outsideInteraction
-        )
         lock.withLock {
-            current = snapshot
+            current = Snapshot(
+                regions: plan.interactionRegions,
+                topPolicy: plan.items.last?.presentation.outsideInteraction,
+                presentations: plan.items,
+                isDismissalBlocking: dismissalCount > 0
+            )
+        }
+    }
+
+    func beginDismissal(count: Int) {
+        guard count > 0 else { return }
+        lock.withLock {
+            dismissalCount += count
+            current = Snapshot(
+                regions: current.regions,
+                topPolicy: current.topPolicy,
+                presentations: current.presentations,
+                isDismissalBlocking: true
+            )
+        }
+    }
+
+    func endDismissal() {
+        lock.withLock {
+            dismissalCount = max(0, dismissalCount - 1)
+            current = Snapshot(
+                regions: current.regions,
+                topPolicy: current.topPolicy,
+                presentations: current.presentations,
+                isDismissalBlocking: dismissalCount > 0
+            )
+        }
+    }
+
+    func cancelDismissals() {
+        lock.withLock {
+            dismissalCount = 0
+            current = Snapshot(
+                regions: current.regions,
+                topPolicy: current.topPolicy,
+                presentations: current.presentations,
+                isDismissalBlocking: false
+            )
         }
     }
 
@@ -170,6 +220,7 @@ public final class PopupInteractionMap: @unchecked Sendable {
         gesture: PopupInteractionGesture = .idle
     ) -> OutsideInteractionAction<PopupID> {
         let snapshot = snapshot()
+        guard !snapshot.isDismissalBlocking else { return .consume }
         guard let topPolicy = snapshot.topPolicy else {
             return .passThrough(to: nil)
         }
@@ -254,8 +305,22 @@ struct PopupLayout: Layout {
             case let .backdrop(id):
                 guard itemsByID[id] != nil else { continue }
                 placeFullScreen(subview, in: bounds)
+            case let .dismissalPopup(_, frame):
+                subview.place(
+                    at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
+                    anchor: .topLeading,
+                    proposal: ProposedViewSize(frame.size)
+                )
+            case .dismissalBackdrop:
+                placeFullScreen(subview, in: bounds)
             case .shield:
-                guard cache.plan.shieldCount > 0 else { continue }
+                let hasDismissalSnapshot = subviews.contains { subview in
+                    if case .dismissalPopup = subview[PopupLayoutRoleKey.self] {
+                        return true
+                    }
+                    return false
+                }
+                guard cache.plan.shieldCount > 0 || hasDismissalSnapshot else { continue }
                 placeFullScreen(subview, in: bounds)
             case .unmanaged:
                 continue
@@ -267,6 +332,8 @@ struct PopupLayout: Layout {
 enum PopupLayoutRole {
     case popup(PopupID)
     case backdrop(PopupID)
+    case dismissalPopup(PopupID, CGRect)
+    case dismissalBackdrop(PopupID)
     case shield
     case unmanaged
 }

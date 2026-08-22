@@ -137,22 +137,22 @@ public extension Popup where Config == AnchoredPopupConfig {
 
 @MainActor
 public func dismissLastPopup(popupStackID: PopupStackID = .shared) async {
-    PopupCommands.dismissLast(popupStackID: popupStackID)
+    await PopupCommands.dismissLast(popupStackID: popupStackID)
 }
 
 @MainActor
 public func dismissPopup(_ id: String, popupStackID: PopupStackID = .shared) async {
-    PopupCommands.dismiss(customID: id, popupStackID: popupStackID)
+    await PopupCommands.dismiss(customID: id, popupStackID: popupStackID)
 }
 
 @MainActor
 public func dismissPopup<P: Popup>(_ type: P.Type, popupStackID: PopupStackID = .shared) async {
-    PopupCommands.dismiss(popupTypeName: String(reflecting: type), popupStackID: popupStackID)
+    await PopupCommands.dismiss(popupTypeName: String(reflecting: type), popupStackID: popupStackID)
 }
 
 @MainActor
 public func dismissAllPopups(popupStackID: PopupStackID = .shared) async {
-    PopupCommands.dismissAll(popupStackID: popupStackID)
+    await PopupCommands.dismissAll(popupStackID: popupStackID)
 }
 
 @MainActor
@@ -160,64 +160,71 @@ public func dismissAllPopups(
     excluding ids: [String],
     popupStackID: PopupStackID = .shared
 ) async {
-    PopupCommands.dismissAll(excluding: Set(ids), popupStackID: popupStackID)
+    await PopupCommands.dismissAll(excluding: Set(ids), popupStackID: popupStackID)
 }
 
 public extension PopupStack {
     @MainActor static func dismissLastPopup(popupStackID: PopupStackID = .shared) async {
-        PopupCommands.dismissLast(popupStackID: popupStackID)
+        await PopupCommands.dismissLast(popupStackID: popupStackID)
     }
 
     @MainActor static func dismissPopup(_ id: String, popupStackID: PopupStackID = .shared) async {
-        PopupCommands.dismiss(customID: id, popupStackID: popupStackID)
+        await PopupCommands.dismiss(customID: id, popupStackID: popupStackID)
     }
 
     @MainActor static func dismissPopup<P: Popup>(
         _ type: P.Type,
         popupStackID: PopupStackID = .shared
     ) async {
-        PopupCommands.dismiss(popupTypeName: String(reflecting: type), popupStackID: popupStackID)
+        await PopupCommands.dismiss(
+            popupTypeName: String(reflecting: type),
+            popupStackID: popupStackID
+        )
     }
 
     @MainActor static func dismissAllPopups(popupStackID: PopupStackID = .shared) async {
-        PopupCommands.dismissAll(popupStackID: popupStackID)
+        await PopupCommands.dismissAll(popupStackID: popupStackID)
     }
 
     @MainActor static func dismissAllPopups(
         excluding ids: [String],
         popupStackID: PopupStackID = .shared
     ) async {
-        PopupCommands.dismissAll(excluding: Set(ids), popupStackID: popupStackID)
+        await PopupCommands.dismissAll(excluding: Set(ids), popupStackID: popupStackID)
     }
 }
 
 @MainActor
 private enum PopupCommands {
-    static func dismissLast(popupStackID: PopupStackID) {
-        _ = PopupStackRegistry.shared.removeLast(popupStackID: popupStackID)
+    static func dismissLast(popupStackID: PopupStackID) async {
+        let mutation = PopupStackRegistry.shared.removeLast(popupStackID: popupStackID)
+        await mutation.dismissalBatch?.wait()
     }
 
-    static func dismiss(customID: String, popupStackID: PopupStackID) {
-        _ = PopupStackRegistry.shared.removePopupAndAbove(
+    static func dismiss(customID: String, popupStackID: PopupStackID) async {
+        let mutation = PopupStackRegistry.shared.removePopupAndAbove(
             customID: customID,
             popupStackID: popupStackID
         )
+        await mutation.dismissalBatch?.wait()
     }
 
-    static func dismiss(popupTypeName: String, popupStackID: PopupStackID) {
-        _ = PopupStackRegistry.shared.removePopupAndAbove(
+    static func dismiss(popupTypeName: String, popupStackID: PopupStackID) async {
+        let mutation = PopupStackRegistry.shared.removePopupAndAbove(
             popupTypeName: popupTypeName,
             popupStackID: popupStackID
         )
+        await mutation.dismissalBatch?.wait()
     }
 
     static func dismissAll(
         excluding customIDs: Set<String> = [],
         popupStackID: PopupStackID
-    ) {
-        _ = PopupStackRegistry.shared.removeAll(
+    ) async {
+        let mutation = PopupStackRegistry.shared.removeAll(
             excluding: customIDs,
             popupStackID: popupStackID
         )
+        await mutation.dismissalBatch?.wait()
     }
 }

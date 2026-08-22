@@ -3,6 +3,7 @@ import SwiftUI
 public struct PopupView: View {
     @ObservedObject private var popupStack: PopupStack
     @ObservedObject private var anchorRegistry: AnchorRegistry
+    @ObservedObject private var dismissalCoordinator: PopupDismissalCoordinator
 
     public let interactionMap: PopupInteractionMap
 
@@ -23,17 +24,24 @@ public struct PopupView: View {
     ) {
         _popupStack = ObservedObject(wrappedValue: popupStack)
         _anchorRegistry = ObservedObject(wrappedValue: anchorRegistry)
+        _dismissalCoordinator = ObservedObject(wrappedValue: popupStack.dismissalCoordinator)
         self.sceneSessionID = sceneSessionID
         self.environment = environment
         self.defaults = defaults
         self.interactionMap = interactionMap
         self.onPassThrough = onPassThrough
+        popupStack.dismissalCoordinator.bindInteractionMap(interactionMap)
     }
 
     public var body: some View {
         let popups = popupStack.popups
+        let dismissalSnapshots = dismissalCoordinator.snapshots
         let inputs = popups.map(layoutInput)
         let topIndex = max(0, popups.count - 1)
+        let shieldLevel = max(
+            Double(topIndex),
+            dismissalSnapshots.map(\.presentation.zIndex).max() ?? 0
+        )
 
         PopupLayout(
             inputs: inputs,
@@ -51,9 +59,21 @@ public struct PopupView: View {
                 }
             }
 
+            ForEach(dismissalSnapshots) { snapshot in
+                if snapshot.presentation.backdrop != .none {
+                    PopupBackdrop(policy: snapshot.presentation.backdrop)
+                        .allowsHitTesting(false)
+                        .modifier(PopupBackdropRemovalModifier(
+                            isDeparting: snapshot.isDeparting
+                        ))
+                        .popupLayoutRole(.dismissalBackdrop(snapshot.id))
+                        .zIndex(snapshot.presentation.zIndex * 3)
+                }
+            }
+
             PopupShield(onTap: routeOutsideInteraction)
                 .popupLayoutRole(.shield)
-                .zIndex(Double(topIndex * 3 + 1))
+                .zIndex(shieldLevel * 3 + 1)
 
             ForEach(Array(popups.enumerated()), id: \.element.id) { index, popup in
                 let chrome = resolvedChrome(for: popup.configuration)
@@ -62,12 +82,51 @@ public struct PopupView: View {
                     .popupLayoutRole(.popup(popup.id))
                     .zIndex(Double(index * 3 + 2))
             }
+
+            ForEach(dismissalSnapshots) { snapshot in
+                snapshot.popup.body
+                    .modifier(PopupChromeModifier(
+                        chrome: PopupChrome(snapshot.presentation)
+                    ))
+                    .modifier(PopupRemovalEffect(
+                        transition: snapshot.presentation.removalTransition,
+                        isDeparting: snapshot.isDeparting,
+                        containerSize: environment.containerSize
+                    ))
+                    .popupLayoutRole(.dismissalPopup(
+                        snapshot.id,
+                        snapshot.presentation.frame
+                    ))
+                    .allowsHitTesting(false)
+                    .zIndex(snapshot.presentation.zIndex * 3 + 2)
+                    .task {
+                        await startDismissal(snapshot)
+                    }
+            }
         }
         .frame(
             width: environment.containerSize.width,
             height: environment.containerSize.height
         )
         .clipped()
+        .onAppear {
+            dismissalCoordinator.configure(
+                isRenderingActive: true,
+                reduceMotion: environment.accessibilityReduceMotion
+            )
+        }
+        .onChange(of: environment.accessibilityReduceMotion) { _, reduceMotion in
+            dismissalCoordinator.configure(
+                isRenderingActive: true,
+                reduceMotion: reduceMotion
+            )
+        }
+        .onDisappear {
+            dismissalCoordinator.configure(
+                isRenderingActive: false,
+                reduceMotion: environment.accessibilityReduceMotion
+            )
+        }
     }
 }
 
@@ -136,6 +195,22 @@ private extension PopupView {
         guard nextIndex < popupStack.popups.endIndex else { return }
         popupStack.removePopupAndAbove(popupStack.popups[nextIndex].id)
     }
+
+    func startDismissal(_ snapshot: PopupDismissalSnapshot) async {
+        guard dismissalCoordinator.claimStart(identity: snapshot.id) else { return }
+        guard !environment.accessibilityReduceMotion,
+            snapshot.presentation.removalTransition != .identity else {
+            dismissalCoordinator.complete(identity: snapshot.id)
+            return
+        }
+
+        await Task.yield()
+        withAnimation(.easeInOut(duration: 0.3), completionCriteria: .logicallyComplete) {
+            dismissalCoordinator.markDeparting(identity: snapshot.id)
+        } completion: {
+            dismissalCoordinator.complete(identity: snapshot.id)
+        }
+    }
 }
 
 private struct PopupChrome {
@@ -152,6 +227,14 @@ private struct PopupChrome {
         backdrop = config.backdrop
         insertionTransition = config.insertionTransition
         removalTransition = config.removalTransition
+    }
+
+    init(_ presentation: PopupPresentation) {
+        corners = presentation.corners
+        background = presentation.background
+        backdrop = presentation.backdrop
+        insertionTransition = presentation.insertionTransition
+        removalTransition = presentation.removalTransition
     }
 }
 
@@ -202,6 +285,52 @@ private struct PopupBackgroundView: View {
         switch background {
         case let .color(color):
             color
+        }
+    }
+}
+
+private struct PopupBackdropRemovalModifier: ViewModifier {
+    let isDeparting: Bool
+
+    func body(content: Content) -> some View {
+        content.opacity(isDeparting ? 0 : 1)
+    }
+}
+
+private struct PopupRemovalEffect: ViewModifier {
+    let transition: PopupTransition
+    let isDeparting: Bool
+    let containerSize: CGSize
+
+    func body(content: Content) -> some View {
+        content
+            .offset(isDeparting ? targetOffset : .zero)
+            .scaleEffect(isDeparting && transition == .scaleAndOpacity ? 0.85 : 1)
+            .opacity(isDeparting && fades ? 0 : 1)
+    }
+
+    private var fades: Bool {
+        transition == .opacity || transition == .scaleAndOpacity
+    }
+
+    private var targetOffset: CGSize {
+        guard case let .moveFrom(edge) = transition else {
+            guard case let .moveTo(edge) = transition else { return .zero }
+            return offset(for: edge)
+        }
+        return offset(for: edge)
+    }
+
+    private func offset(for edge: Edge) -> CGSize {
+        switch edge {
+        case .top:
+            CGSize(width: 0, height: -containerSize.height)
+        case .bottom:
+            CGSize(width: 0, height: containerSize.height)
+        case .leading:
+            CGSize(width: -containerSize.width, height: 0)
+        case .trailing:
+            CGSize(width: containerSize.width, height: 0)
         }
     }
 }

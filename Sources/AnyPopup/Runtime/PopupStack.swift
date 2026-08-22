@@ -5,17 +5,23 @@ public struct PopupMutation {
     public let inserted: AnyPopup?
     public let removed: [AnyPopup]
     public let focused: AnyPopup?
+    public let dismissalBatch: PopupDismissalBatch?
 
-    static let none = Self(inserted: nil, removed: [], focused: nil)
+    static let none = Self(inserted: nil, removed: [], focused: nil, dismissalBatch: nil)
 }
 
 @MainActor
 public final class PopupStack: ObservableObject {
     public let id: PopupStackID
+    public let dismissalCoordinator: PopupDismissalCoordinator
     @Published public private(set) var popups: [AnyPopup]
 
-    public init(id: PopupStackID) {
+    public init(
+        id: PopupStackID,
+        dismissalCoordinator: PopupDismissalCoordinator = PopupDismissalCoordinator()
+    ) {
         self.id = id
+        self.dismissalCoordinator = dismissalCoordinator
         popups = []
     }
 
@@ -27,7 +33,12 @@ public final class PopupStack: ObservableObject {
 
         popups.append(popup)
         popup.focusAction()
-        return PopupMutation(inserted: popup, removed: [], focused: popup)
+        return PopupMutation(
+            inserted: popup,
+            removed: [],
+            focused: popup,
+            dismissalBatch: nil
+        )
     }
 
     @discardableResult
@@ -85,6 +96,11 @@ private extension PopupStack {
         } else {
             focused = nil
         }
-        return PopupMutation(inserted: nil, removed: removed, focused: focused)
+        return PopupMutation(
+            inserted: nil,
+            removed: removed,
+            focused: focused,
+            dismissalBatch: dismissalCoordinator.begin(removed)
+        )
     }
 }

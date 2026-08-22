@@ -66,6 +66,7 @@ public final class PopupStackRegistry {
         let key = Key(sceneSessionID: sceneSessionID, popupStackID: stack.id)
         if let replaced = stacks.updateValue(stack, forKey: key) {
             _ = applyRemoval(replaced.removeAll())
+            replaced.dismissalCoordinator.cancelAll()
         }
         lastResolutionError = nil
     }
@@ -77,6 +78,7 @@ public final class PopupStackRegistry {
         ))
         if let removed {
             _ = applyRemoval(removed.removeAll())
+            removed.dismissalCoordinator.cancelAll()
         }
         if activeSceneSessionID == sceneSessionID,
             !stacks.keys.contains(where: { $0.sceneSessionID == sceneSessionID }) {
