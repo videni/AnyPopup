@@ -19,11 +19,14 @@ struct PopupBackdrop: View {
 
     @ViewBuilder
     var body: some View {
-        switch policy {
-        case .none:
-            Color.clear
-        case let .color(color, opacity):
-            color.opacity(opacity)
+        Group {
+            switch policy {
+            case .none:
+                Color.clear
+            case let .color(color, opacity):
+                color.opacity(opacity)
+            }
         }
+        .ignoresSafeArea()
     }
 }
