@@ -80,7 +80,7 @@ public enum PopupPresentationResolver {
         guard let anchorFrame else {
             throw PopupPresentationError.missingAnchorFrame
         }
-        guard isValidAnchorFrame(anchorFrame) else {
+        guard PopupGeometryValidation.isValidAnchorFrame(anchorFrame) else {
             throw PopupPresentationError.invalidAnchorFrame
         }
 
@@ -181,14 +181,4 @@ private extension PopupPresentationResolver {
         )
     }
 
-    static func isValidAnchorFrame(_ frame: CGRect) -> Bool {
-        !frame.isNull
-            && !frame.isInfinite
-            && frame.width > 0
-            && frame.height > 0
-            && frame.origin.x.isFinite
-            && frame.origin.y.isFinite
-            && frame.width.isFinite
-            && frame.height.isFinite
-    }
 }
