@@ -20,7 +20,7 @@ public enum ContainerPopupPresentation: Sendable {
     }
 }
 
-public enum ContainerPopupCondition: Sendable, Equatable {
+public enum PopupCondition: Sendable, Equatable {
     case containerWidthLessThan(CGFloat)
     case containerHeightLessThan(CGFloat)
     case availableWidthLessThan(CGFloat)
@@ -46,6 +46,8 @@ public enum ContainerPopupCondition: Sendable, Equatable {
     }
 }
 
+public typealias ContainerPopupCondition = PopupCondition
+
 public struct ContainerPopupRule: Sendable {
     public let condition: ContainerPopupCondition
     public let presentation: ContainerPopupPresentation
@@ -63,17 +65,30 @@ public struct ResolvedContainerPopupConfiguration: Sendable {
 public struct ContainerPopupConfig: PopupConfiguration {
     public let defaultPresentation: ContainerPopupPresentation
     public let conditionalPresentations: [ContainerPopupRule]
+    public let layoutTransition: PopupTransition
 
     public static func center(_ config: CenterPopupConfig = .init()) -> Self {
-        Self(defaultPresentation: .center(config), conditionalPresentations: [])
+        Self(
+            defaultPresentation: .center(config),
+            conditionalPresentations: [],
+            layoutTransition: .identity
+        )
     }
 
     public static func top(_ config: TopPopupConfig = .init()) -> Self {
-        Self(defaultPresentation: .top(config), conditionalPresentations: [])
+        Self(
+            defaultPresentation: .top(config),
+            conditionalPresentations: [],
+            layoutTransition: .identity
+        )
     }
 
     public static func bottom(_ config: BottomPopupConfig = .init()) -> Self {
-        Self(defaultPresentation: .bottom(config), conditionalPresentations: [])
+        Self(
+            defaultPresentation: .bottom(config),
+            conditionalPresentations: [],
+            layoutTransition: .identity
+        )
     }
 
     public func when(
@@ -84,7 +99,16 @@ public struct ContainerPopupConfig: PopupConfiguration {
             defaultPresentation: defaultPresentation,
             conditionalPresentations: conditionalPresentations + [
                 ContainerPopupRule(condition: condition, presentation: presentation)
-            ]
+            ],
+            layoutTransition: layoutTransition
+        )
+    }
+
+    public func layoutTransition(_ transition: PopupTransition) -> Self {
+        Self(
+            defaultPresentation: defaultPresentation,
+            conditionalPresentations: conditionalPresentations,
+            layoutTransition: transition
         )
     }
 
@@ -109,10 +133,12 @@ public struct ContainerPopupConfig: PopupConfiguration {
 
     private init(
         defaultPresentation: ContainerPopupPresentation,
-        conditionalPresentations: [ContainerPopupRule]
+        conditionalPresentations: [ContainerPopupRule],
+        layoutTransition: PopupTransition
     ) {
         self.defaultPresentation = defaultPresentation
         self.conditionalPresentations = conditionalPresentations
+        self.layoutTransition = layoutTransition
     }
 }
 

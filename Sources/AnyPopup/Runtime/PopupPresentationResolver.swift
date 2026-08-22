@@ -22,7 +22,7 @@ public enum PopupPresentationResolver {
                     environment: environment,
                     safeArea: .contained,
                     keyboardAvoidance: center.keyboardAvoidance
-                ),
+                ).inset(by: center.padding),
                 config: center
             )
             return presentation(
@@ -30,6 +30,7 @@ public enum PopupPresentationResolver {
                 config: center,
                 drag: disabledDrag,
                 stackAppearance: center.stackAppearance,
+                layoutTransition: config.layoutTransition,
                 zIndex: zIndex
             )
         case let .top(top):
@@ -39,7 +40,7 @@ public enum PopupPresentationResolver {
                     environment: environment,
                     safeArea: top.safeArea,
                     keyboardAvoidance: .none
-                ),
+                ).inset(by: top.padding),
                 config: top
             )
             return presentation(
@@ -47,6 +48,7 @@ public enum PopupPresentationResolver {
                 config: top,
                 drag: top.drag,
                 stackAppearance: top.stackAppearance,
+                layoutTransition: config.layoutTransition,
                 zIndex: zIndex
             )
         case let .bottom(bottom):
@@ -56,7 +58,7 @@ public enum PopupPresentationResolver {
                     environment: environment,
                     safeArea: bottom.safeArea,
                     keyboardAvoidance: bottom.keyboardAvoidance
-                ),
+                ).inset(by: bottom.padding),
                 config: bottom
             )
             return presentation(
@@ -64,6 +66,7 @@ public enum PopupPresentationResolver {
                 config: bottom,
                 drag: bottom.drag,
                 stackAppearance: bottom.stackAppearance,
+                layoutTransition: config.layoutTransition,
                 zIndex: zIndex
             )
         }
@@ -84,11 +87,11 @@ public enum PopupPresentationResolver {
             throw PopupPresentationError.invalidAnchorFrame
         }
 
-        let resolved = config.applying(defaults: defaults.anchored)
+        let resolved = config.resolve(in: environment, defaults: defaults.anchored).configuration
         let geometry = AnchoredPopupGeometry.resolve(
             contentSize: contentSize,
             anchorFrame: anchorFrame,
-            containerFrame: safeAreaFrame(environment),
+            containerFrame: safeAreaFrame(environment).inset(by: resolved.padding),
             config: resolved
         )
         return presentation(
@@ -110,6 +113,7 @@ private extension PopupPresentationResolver {
         config: Config,
         drag: DragPolicy,
         stackAppearance: StackAppearance,
+        layoutTransition: PopupTransition = .identity,
         zIndex: Double,
         anchoredGeometry: AnchoredPopupGeometry? = nil
     ) -> PopupPresentation where Config: PopupVisualConfigurable,
@@ -126,7 +130,7 @@ private extension PopupPresentationResolver {
             backdrop: config.backdrop,
             insertionTransition: config.insertionTransition,
             removalTransition: config.removalTransition,
-            layoutTransition: .identity,
+            layoutTransition: layoutTransition,
             drag: drag,
             outsideInteraction: config.outsideInteraction,
             stackAppearance: stackAppearance,
@@ -181,4 +185,19 @@ private extension PopupPresentationResolver {
         )
     }
 
+}
+
+private extension CGRect {
+    func inset(by insets: EdgeInsets) -> CGRect {
+        let originX = min(maxX, minX + max(0, insets.leading))
+        let originY = min(maxY, minY + max(0, insets.top))
+        let farX = max(originX, maxX - max(0, insets.trailing))
+        let farY = max(originY, maxY - max(0, insets.bottom))
+        return CGRect(
+            x: originX,
+            y: originY,
+            width: farX - originX,
+            height: farY - originY
+        )
+    }
 }

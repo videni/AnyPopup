@@ -2,13 +2,18 @@ import SwiftUI
 
 public struct TopPopupConfig: PopupConfiguration,
     PopupSizingConfigurable,
+    PopupPaddingConfigurable,
     PopupVisualConfigurable,
     PopupTransitionConfigurable,
     PopupOutsideInteractionConfigurable,
-    PopupDetentConfigurable {
+    PopupDetentConfigurable,
+    PopupSafeAreaConfigurable,
+    PopupDragConfigurable,
+    PopupStackAppearanceConfigurable {
     private var explicitFields: Set<PopupConfigurationField> = []
 
     public var size: PopupSizePolicy { didSet { explicitFields.insert(.size) } }
+    public var padding: EdgeInsets { didSet { explicitFields.insert(.padding) } }
     public var corners: PopupCorners { didSet { explicitFields.insert(.corners) } }
     public var background: PopupBackground { didSet { explicitFields.insert(.background) } }
     public var backdrop: BackdropPolicy { didSet { explicitFields.insert(.backdrop) } }
@@ -22,6 +27,7 @@ public struct TopPopupConfig: PopupConfiguration,
 
     public init() {
         size = .content
+        padding = EdgeInsets()
         corners = .all(radius: 40)
         background = .color(.white)
         backdrop = .color(.black, opacity: 0.5)
@@ -49,6 +55,7 @@ extension TopPopupConfig {
     func applying(defaults: Self) -> Self {
         var result = self
         inherit(.size, defaults: defaults, result: &result, at: \.size)
+        inherit(.padding, defaults: defaults, result: &result, at: \.padding)
         inherit(.corners, defaults: defaults, result: &result, at: \.corners)
         inherit(.background, defaults: defaults, result: &result, at: \.background)
         inherit(.backdrop, defaults: defaults, result: &result, at: \.backdrop)

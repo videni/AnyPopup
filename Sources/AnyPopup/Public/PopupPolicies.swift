@@ -2,6 +2,7 @@ import SwiftUI
 
 enum PopupConfigurationField: Sendable, Hashable {
     case size
+    case padding
     case corners
     case background
     case backdrop
@@ -161,6 +162,34 @@ public protocol PopupSizingConfigurable: PopupConfiguration {
     var size: PopupSizePolicy { get set }
 }
 
+public protocol PopupPaddingConfigurable: PopupConfiguration {
+    var padding: EdgeInsets { get set }
+}
+
+public extension PopupPaddingConfigurable {
+    func padding(_ edges: Edge.Set = .all, _ length: CGFloat) -> Self {
+        let value = max(0, length)
+        var copy = self
+        var insets = copy.padding
+
+        if edges.contains(.top) {
+            insets.top = value
+        }
+        if edges.contains(.leading) {
+            insets.leading = value
+        }
+        if edges.contains(.bottom) {
+            insets.bottom = value
+        }
+        if edges.contains(.trailing) {
+            insets.trailing = value
+        }
+
+        copy.padding = insets
+        return copy
+    }
+}
+
 public extension PopupSizingConfigurable {
     func size(_ policy: PopupSizePolicy) -> Self {
         var copy = self
@@ -227,6 +256,54 @@ public extension PopupOutsideInteractionConfigurable {
 
 public protocol PopupDetentConfigurable: PopupConfiguration {
     var detents: [PopupDetent] { get set }
+}
+
+public protocol PopupSafeAreaConfigurable: PopupConfiguration {
+    var safeArea: PopupSafeAreaPolicy { get set }
+}
+
+public extension PopupSafeAreaConfigurable {
+    func safeArea(_ policy: PopupSafeAreaPolicy) -> Self {
+        var copy = self
+        copy.safeArea = policy
+        return copy
+    }
+}
+
+public protocol PopupDragConfigurable: PopupConfiguration {
+    var drag: DragPolicy { get set }
+}
+
+public extension PopupDragConfigurable {
+    func drag(
+        isEnabled: Bool,
+        activationArea: CGFloat? = nil,
+        dismissalThreshold: Double? = nil
+    ) -> Self {
+        var copy = self
+        var policy = copy.drag
+        policy.isEnabled = isEnabled
+        if let activationArea {
+            policy.activationArea = max(0, activationArea)
+        }
+        if let dismissalThreshold {
+            policy.dismissalThreshold = min(max(0, dismissalThreshold), 1)
+        }
+        copy.drag = policy
+        return copy
+    }
+}
+
+public protocol PopupStackAppearanceConfigurable: PopupConfiguration {
+    var stackAppearance: StackAppearance { get set }
+}
+
+public extension PopupStackAppearanceConfigurable {
+    func stackAppearance(_ appearance: StackAppearance) -> Self {
+        var copy = self
+        copy.stackAppearance = appearance
+        return copy
+    }
 }
 
 public extension PopupDetentConfigurable {

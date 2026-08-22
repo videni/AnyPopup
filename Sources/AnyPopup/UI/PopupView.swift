@@ -47,6 +47,7 @@ public struct PopupView: View {
             Double(topIndex),
             dismissalSnapshots.map(\.presentation.zIndex).max() ?? 0
         )
+        let layoutAnimation = resolvedLayoutAnimation(for: inputs)
 
         PopupLayout(
             inputs: inputs,
@@ -115,6 +116,11 @@ public struct PopupView: View {
             height: environment.containerSize.height
         )
         .clipped()
+        .animation(layoutAnimation, value: environment)
+        .animation(
+            environment.accessibilityReduceMotion ? nil : .easeInOut(duration: 0.3),
+            value: popups.map(\.id)
+        )
         .onAppear {
             dismissalCoordinator.configure(
                 isRenderingActive: true,
@@ -174,7 +180,7 @@ private extension PopupView {
                 PopupChrome(value)
             }
         case let .anchored(config):
-            PopupChrome(config.applying(defaults: defaults.anchored))
+            PopupChrome(config.resolve(in: environment, defaults: defaults.anchored).configuration)
         }
     }
 
@@ -194,8 +200,22 @@ private extension PopupView {
         case let .anchored(config):
             guard let anchorFrame = input.anchorFrame,
                 PopupGeometryValidation.isValidAnchorFrame(anchorFrame) else { return nil }
-            return config.applying(defaults: defaults.anchored).outsideInteraction
+            return config.resolve(
+                in: environment,
+                defaults: defaults.anchored
+            ).configuration.outsideInteraction
         }
+    }
+
+    func resolvedLayoutAnimation(for inputs: [PopupLayoutInput]) -> Animation? {
+        guard !environment.accessibilityReduceMotion else { return nil }
+        let transition = inputs.reversed().compactMap { input -> PopupTransition? in
+            guard case let .container(config) = input.configuration,
+                config.layoutTransition != .identity else { return nil }
+            return config.layoutTransition
+        }.first
+        guard transition != nil else { return nil }
+        return .easeInOut(duration: 0.3)
     }
 
     func routeOutsideInteraction(_ point: CGPoint) {

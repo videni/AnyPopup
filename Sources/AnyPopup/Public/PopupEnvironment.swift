@@ -1,6 +1,6 @@
 import SwiftUI
 
-public struct PopupEnvironment: Sendable {
+public struct PopupEnvironment: Sendable, Equatable {
     public let containerSize: CGSize
     public let safeArea: EdgeInsets
     public let keyboardOcclusionHeight: CGFloat

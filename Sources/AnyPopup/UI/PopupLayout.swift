@@ -385,7 +385,7 @@ private extension PopupLayout {
                 size = value.size
             }
         case let .anchored(config):
-            size = config.applying(defaults: defaults.anchored).size
+            size = config.resolve(in: environment, defaults: defaults.anchored).configuration.size
         }
 
         switch size {
