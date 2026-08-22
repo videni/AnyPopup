@@ -37,6 +37,16 @@ public struct BottomPopupConfig: PopupConfiguration,
     }
 }
 
+public extension BottomPopupConfig {
+    var dragConfiguration: PopupDragConfiguration {
+        .bottom(
+            isEnabled: drag.isEnabled,
+            dismissalThreshold: drag.dismissalThreshold,
+            detents: detents
+        )
+    }
+}
+
 extension BottomPopupConfig {
     func applying(defaults: Self) -> Self {
         var result = self

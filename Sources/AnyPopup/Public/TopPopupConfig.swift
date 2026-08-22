@@ -35,6 +35,16 @@ public struct TopPopupConfig: PopupConfiguration,
     }
 }
 
+public extension TopPopupConfig {
+    var dragConfiguration: PopupDragConfiguration {
+        .top(
+            isEnabled: drag.isEnabled,
+            dismissalThreshold: drag.dismissalThreshold,
+            detents: detents
+        )
+    }
+}
+
 extension TopPopupConfig {
     func applying(defaults: Self) -> Self {
         var result = self
