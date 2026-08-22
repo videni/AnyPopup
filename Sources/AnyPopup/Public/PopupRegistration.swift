@@ -106,11 +106,13 @@ import UIKit
 public extension View {
     func registerPopups(
         id: PopupStackID = .shared,
-        configBuilder: @escaping (PopupDefaults) -> PopupDefaults = { $0 }
+        configBuilder: @escaping (PopupDefaults) -> PopupDefaults = { $0 },
+        keyboardManagerInstaller: (@MainActor (UIViewController.Type) -> Void)? = nil
     ) -> some View {
         modifier(PopupSceneRegistrationModifier(
             popupStackID: id,
-            defaults: configBuilder(PopupDefaults())
+            defaults: configBuilder(PopupDefaults()),
+            keyboardManagerInstaller: keyboardManagerInstaller
         ))
     }
 }
@@ -131,6 +133,7 @@ private struct PopupSceneRegistrationModifier: ViewModifier {
 
     let popupStackID: PopupStackID
     let defaults: PopupDefaults
+    let keyboardManagerInstaller: (@MainActor (UIViewController.Type) -> Void)?
 
     func body(content: Content) -> some View {
         content
@@ -139,6 +142,7 @@ private struct PopupSceneRegistrationModifier: ViewModifier {
                 PopupSceneAttachment(
                     popupStackID: popupStackID,
                     defaults: defaults,
+                    keyboardManagerInstaller: keyboardManagerInstaller,
                     locale: locale,
                     layoutDirection: layoutDirection,
                     colorScheme: colorScheme,
@@ -154,6 +158,7 @@ private struct PopupSceneRegistrationModifier: ViewModifier {
 private struct PopupSceneAttachment: UIViewRepresentable {
     let popupStackID: PopupStackID
     let defaults: PopupDefaults
+    let keyboardManagerInstaller: (@MainActor (UIViewController.Type) -> Void)?
     let locale: Locale
     let layoutDirection: LayoutDirection
     let colorScheme: ColorScheme?
@@ -189,6 +194,13 @@ private struct PopupSceneAttachment: UIViewRepresentable {
             context.coordinator.didApplyDefaults = true
         }
         controller.start()
+        if let keyboardManagerInstaller {
+            KeyboardManagerIntegration.shared.installOnce(
+                sceneSessionID: controller.sceneSessionID
+            ) {
+                keyboardManagerInstaller(PopupHostingController.self)
+            }
+        }
         controller.updateEnvironment(
             locale: locale,
             layoutDirection: layoutDirection,
