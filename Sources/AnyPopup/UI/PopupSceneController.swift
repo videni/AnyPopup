@@ -151,7 +151,7 @@ public enum PopupSystemPresenter {
     }
 }
 
-open class PopupSceneDelegate: NSObject, UIWindowSceneDelegate {
+open class AnyPopupSceneDelegate: NSObject, UIWindowSceneDelegate {
     open var window: UIWindow?
     open var configBuilder: (PopupDefaults) -> PopupDefaults = { $0 }
     open var popupStackID: PopupStackID = .shared
