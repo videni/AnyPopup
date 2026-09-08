@@ -96,6 +96,8 @@ struct PopupSceneRootView: View {
             .environment(\.popupContainerSize, containerSize)
             .ignoresSafeArea()
         }
+        // PopupEnvironment owns keyboard avoidance; this reader measures physical safe areas only.
+        .ignoresSafeArea(.keyboard)
         .environment(\.locale, environmentBridge.locale)
         .environment(\.layoutDirection, environmentBridge.layoutDirection)
         .environment(\.dynamicTypeSize, environmentBridge.dynamicTypeSize)
