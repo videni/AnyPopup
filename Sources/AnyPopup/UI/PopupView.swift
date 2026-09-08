@@ -39,6 +39,10 @@ public struct PopupView: View {
     public var body: some View {
         let popups = popupStack.popups
         let dismissalSnapshots = dismissalCoordinator.snapshots
+        let renderEntries = PopupRenderEntry.resolve(
+            active: popups,
+            dismissing: dismissalSnapshots
+        )
         let stackAppearances = resolvedStackAppearances(for: popups)
         let inputs = popups.map { popup in
             layoutInput(
@@ -90,65 +94,53 @@ public struct PopupView: View {
                 .allowsHitTesting(shieldCapturesTouches)
                 .zIndex(shieldLevel * 3 + 1)
 
-            ForEach(Array(popups.enumerated()), id: \.element.id) { index, popup in
-                let chrome = resolvedChrome(for: popup.configuration)
-                let appearance = stackAppearances[popup.id] ?? .identity
-                let verticalConfiguration = resolvedVerticalConfiguration(
-                    for: popup.configuration
-                )
-                popup.body
+            ForEach(renderEntries) { entry in
+                let popup = entry.popup
+                let snapshot = entry.snapshot
+                let chrome = snapshot.map { PopupChrome($0.presentation) }
+                    ?? resolvedChrome(for: popup.configuration)
+                let activeAppearance = stackAppearances[popup.id] ?? .identity
+                let overlayOpacity = snapshot?.presentation.stackOverlayOpacity
+                    ?? activeAppearance.overlayOpacity
+                let opacity = snapshot?.presentation.opacity ?? activeAppearance.opacity
+                let verticalConfiguration = snapshot == nil
+                    ? resolvedVerticalConfiguration(for: popup.configuration)
+                    : nil
+                entry.popup.body
                     .environment(
                         \.popupAnchoredGeometry,
-                        presentationStore.anchoredGeometry(for: popup.id)
+                        snapshot?.presentation.anchoredGeometry
+                            ?? presentationStore.anchoredGeometry(for: popup.id)
                     )
                     .modifier(PopupChromeModifier(
                         chrome: chrome,
-                        stackOverlayOpacity: appearance.overlayOpacity,
+                        stackOverlayOpacity: overlayOpacity,
                         fillsResolvedFrame: PopupRenderSizingPolicy.fillsResolvedFrame(
                             for: popup.configuration
-                        )
+                        ),
+                        renderRole: snapshot == nil ? .live : .dismissalSnapshot
                     ))
-                    .opacity(appearance.opacity)
+                    .opacity(opacity)
                     .simultaneousGesture(
                         verticalDragGesture(
                             popup: popup,
                             configuration: verticalConfiguration
                         ),
-                        including: index == topIndex
+                        including: entry.activeIndex == topIndex
                             && verticalConfiguration?.dragConfiguration.isEnabled == true
                             ? .all
                             : .none
                     )
-                    .popupLayoutRole(.popup(popup.id))
-                    .zIndex(Double(index * 3 + 2))
-            }
-
-            ForEach(dismissalSnapshots) { snapshot in
-                snapshot.popup.body
-                    .environment(
-                        \.popupAnchoredGeometry,
-                        snapshot.presentation.anchoredGeometry
-                    )
-                    .modifier(PopupChromeModifier(
-                        chrome: PopupChrome(snapshot.presentation),
-                        fillsResolvedFrame: PopupRenderSizingPolicy.fillsResolvedFrame(
-                            for: snapshot.popup.configuration
-                        ),
-                        renderRole: .dismissalSnapshot
-                    ))
-                    .opacity(snapshot.presentation.opacity)
                     .modifier(PopupRemovalEffect(
-                        transition: snapshot.presentation.removalTransition,
-                        isDeparting: snapshot.isDeparting,
+                        transition: snapshot?.presentation.removalTransition ?? .identity,
+                        isDeparting: entry.phase == .departing,
                         containerSize: environment.containerSize
                     ))
-                    .popupLayoutRole(.dismissalPopup(
-                        snapshot.id,
-                        snapshot.presentation.frame
-                    ))
-                    .allowsHitTesting(false)
-                    .zIndex(snapshot.presentation.zIndex * 3 + 2)
-                    .task {
+                    .popupLayoutRole(layoutRole(for: entry))
+                    .allowsHitTesting(snapshot == nil)
+                    .zIndex(entry.zIndex * 3 + 2)
+                    .task(id: entry.dismissalTaskID) {
+                        guard let snapshot else { return }
                         await startDismissal(snapshot)
                     }
             }
@@ -192,6 +184,13 @@ public struct PopupView: View {
 }
 
 private extension PopupView {
+    func layoutRole(for entry: PopupRenderEntry) -> PopupLayoutRole {
+        guard let snapshot = entry.snapshot else {
+            return .popup(entry.id)
+        }
+        return .dismissalPopup(snapshot.id, snapshot.presentation.frame)
+    }
+
     func layoutInput(
         _ popup: AnyPopup,
         stackAppearance: PopupStackItemAppearance
