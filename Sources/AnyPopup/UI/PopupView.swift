@@ -529,14 +529,9 @@ private struct PopupChromeModifier: ViewModifier {
     let chrome: PopupChrome
     var stackOverlayOpacity: Double? = nil
     let fillsResolvedFrame: Bool
-    var renderRole: PopupRenderRole = .live
 
     @ViewBuilder
     func body(content: Content) -> some View {
-        let transitionPlan = renderRole.transitionPlan(
-            insertion: chrome.insertionTransition,
-            removal: chrome.removalTransition
-        )
         switch chrome.background {
         case .none:
             if fillsResolvedFrame {
@@ -544,16 +539,16 @@ private struct PopupChromeModifier: ViewModifier {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .transition(
                         .asymmetric(
-                            insertion: transitionPlan.insertion.anyTransition,
-                            removal: transitionPlan.removal.anyTransition
+                            insertion: chrome.insertionTransition.anyTransition,
+                            removal: .identity
                         )
                     )
             } else {
                 content
                     .transition(
                         .asymmetric(
-                            insertion: transitionPlan.insertion.anyTransition,
-                            removal: transitionPlan.removal.anyTransition
+                            insertion: chrome.insertionTransition.anyTransition,
+                            removal: .identity
                         )
                     )
             }
@@ -580,8 +575,8 @@ private struct PopupChromeModifier: ViewModifier {
                 )
                 .transition(
                     .asymmetric(
-                        insertion: transitionPlan.insertion.anyTransition,
-                        removal: transitionPlan.removal.anyTransition
+                        insertion: chrome.insertionTransition.anyTransition,
+                        removal: .identity
                     )
                 )
         }
@@ -606,28 +601,6 @@ enum PopupRenderSizingPolicy {
             true
         case .anchored:
             false
-        }
-    }
-}
-
-struct PopupRenderTransitionPlan: Equatable {
-    let insertion: PopupTransition
-    let removal: PopupTransition
-}
-
-enum PopupRenderRole {
-    case live
-    case dismissalSnapshot
-
-    func transitionPlan(
-        insertion: PopupTransition,
-        removal: PopupTransition
-    ) -> PopupRenderTransitionPlan {
-        switch self {
-        case .live:
-            PopupRenderTransitionPlan(insertion: insertion, removal: .identity)
-        case .dismissalSnapshot:
-            PopupRenderTransitionPlan(insertion: .identity, removal: .identity)
         }
     }
 }
