@@ -63,10 +63,23 @@ public final class PopupDismissalCoordinator: ObservableObject {
     private var interactionMap: PopupInteractionMap?
     private var activeBatches: [PopupDismissalBatchID: ActiveBatch] = [:]
     private var claimedPopupIDs: Set<PopupID> = []
+    private weak var keyboardDismissal: (any PopupKeyboardDismissing)?
     private var isRenderingActive = false
     private var reduceMotion = false
 
     public init() {}
+
+    func bindKeyboardDismissal(_ keyboardDismissal: any PopupKeyboardDismissing) {
+        self.keyboardDismissal = keyboardDismissal
+    }
+
+    func waitBeforeDeparture(for popup: AnyPopup) async {
+        guard let keyboardDismissal else { return }
+        await PopupDismissalGate().waitBeforeDeparture(
+            dismissKeyboard: popup.dismissKeyboardOnDismissal,
+            keyboard: keyboardDismissal
+        )
+    }
 
     public func bindInteractionMap(_ interactionMap: PopupInteractionMap) {
         guard self.interactionMap !== interactionMap else { return }

@@ -288,6 +288,7 @@ private extension PopupView {
 
     func startDismissal(_ snapshot: PopupDismissalSnapshot) async {
         guard dismissalCoordinator.claimStart(identity: snapshot.id) else { return }
+        await dismissalCoordinator.waitBeforeDeparture(for: snapshot.popup)
         guard !environment.accessibilityReduceMotion,
             snapshot.presentation.removalTransition != .identity else {
             dismissalCoordinator.complete(identity: snapshot.id)

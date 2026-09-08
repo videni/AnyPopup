@@ -114,6 +114,7 @@ struct PopupSceneRootView: View {
 @MainActor
 final class PopupKeyboardObserver: NSObject, ObservableObject {
     @Published private(set) var occlusionHeight: CGFloat = 0
+    private let dismissalWaiters = PopupKeyboardDismissalWaiters()
     weak var window: UIWindow? {
         didSet {
             objectWillChange.send()
@@ -132,6 +133,12 @@ final class PopupKeyboardObserver: NSObject, ObservableObject {
             self,
             selector: #selector(update(_:)),
             name: UIResponder.keyboardWillHideNotification,
+            object: nil
+        )
+        notificationCenter.addObserver(
+            self,
+            selector: #selector(update(_:)),
+            name: UIResponder.keyboardDidHideNotification,
             object: nil
         )
     }
@@ -164,6 +171,11 @@ final class PopupKeyboardObserver: NSObject, ObservableObject {
     }
 
     @objc private func update(_ notification: Notification) {
+        if notification.name == UIResponder.keyboardDidHideNotification {
+            occlusionHeight = 0
+            dismissalWaiters.resumeAll()
+            return
+        }
         guard notification.name != UIResponder.keyboardWillHideNotification,
             let window,
             let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else {
@@ -173,6 +185,23 @@ final class PopupKeyboardObserver: NSObject, ObservableObject {
         let converted = window.convert(frame, from: nil)
         let rawOcclusion = max(0, window.bounds.maxY - converted.minY)
         occlusionHeight = max(0, rawOcclusion - window.safeAreaInsets.bottom)
+    }
+
+    func cancelPendingKeyboardDismissal() {
+        dismissalWaiters.resumeAll()
+    }
+}
+
+extension PopupKeyboardObserver: PopupKeyboardDismissing {
+    func dismissAndWait() async {
+        if dismissalWaiters.isWaiting {
+            await dismissalWaiters.wait { true }
+            return
+        }
+        guard occlusionHeight > 0, let window else { return }
+        await dismissalWaiters.wait {
+            window.endEditing(true)
+        }
     }
 }
 #endif

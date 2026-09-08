@@ -41,6 +41,7 @@ public final class PopupSceneController {
         popupStack = PopupStack(id: popupStackID)
         window = PopupWindow(windowScene: windowScene, interactionMap: interactionMap)
         keyboardObserver = PopupKeyboardObserver()
+        popupStack.dismissalCoordinator.bindKeyboardDismissal(keyboardObserver)
         let presentationHost = PopupUIKitSystemPresentationHost(windowScene: windowScene)
         systemPresentationHost = presentationHost
         systemPresentationCoordinator = SystemPresentationCoordinator(host: presentationHost)
@@ -130,6 +131,7 @@ public final class PopupSceneController {
     public func disconnect() {
         guard hasStarted else { return }
         hasStarted = false
+        keyboardObserver.cancelPendingKeyboardDismissal()
         systemPresentationCoordinator.disconnect()
         PopupStackRegistry.shared.unregister(
             sceneSessionID: sceneSessionID,
