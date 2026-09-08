@@ -41,7 +41,17 @@ private struct PopupAnchoredGeometryKey: EnvironmentKey {
     static let defaultValue: AnchoredPopupGeometry? = nil
 }
 
+private struct PopupPresentedKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
 public extension EnvironmentValues {
+    /// True after the popup's insertion animation completes, while it remains active.
+    var isPopupPresented: Bool {
+        get { self[PopupPresentedKey.self] }
+        set { self[PopupPresentedKey.self] = newValue }
+    }
+
     var popupContainerSize: CGSize {
         get { self[PopupContainerSizeKey.self] }
         set { self[PopupContainerSizeKey.self] = newValue }

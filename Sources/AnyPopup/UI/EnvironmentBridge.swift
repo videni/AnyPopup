@@ -139,15 +139,29 @@ final class PopupKeyboardObserver: NSObject, ObservableObject {
     }
 
     @objc private func update(_ notification: Notification) {
-        guard notification.name != UIResponder.keyboardWillHideNotification,
-            let window,
-            let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else {
-            occlusionHeight = 0
-            return
+        let height: CGFloat
+        if notification.name != UIResponder.keyboardWillHideNotification,
+           let window,
+           let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
+            let converted = window.convert(frame, from: nil)
+            let rawOcclusion = max(0, window.bounds.maxY - converted.minY)
+            height = max(0, rawOcclusion - window.safeAreaInsets.bottom)
+        } else {
+            height = 0
         }
-        let converted = window.convert(frame, from: nil)
-        let rawOcclusion = max(0, window.bounds.maxY - converted.minY)
-        occlusionHeight = max(0, rawOcclusion - window.safeAreaInsets.bottom)
+        guard height != occlusionHeight else { return }
+        let duration = notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double ?? 0
+        let curve = notification.userInfo?[UIResponder.keyboardAnimationCurveUserInfoKey] as? Int ?? 0
+        let animation: Animation
+        switch UIView.AnimationCurve(rawValue: curve) {
+        case .easeIn: animation = .easeIn(duration: duration)
+        case .easeOut: animation = .easeOut(duration: duration)
+        case .linear: animation = .linear(duration: duration)
+        default: animation = .easeInOut(duration: duration)
+        }
+        withAnimation(animation) {
+            occlusionHeight = height
+        }
     }
 }
 #endif

@@ -6,6 +6,7 @@ public struct PopupView: View {
     @ObservedObject private var dismissalCoordinator: PopupDismissalCoordinator
     @StateObject private var presentationStore: PopupPresentationStore
     @State private var verticalInteractionStates: [PopupID: PopupVerticalInteractionState] = [:]
+    @State private var presentedPopupIDs: Set<PopupID> = []
 
     public let interactionMap: PopupInteractionMap
 
@@ -92,6 +93,7 @@ public struct PopupView: View {
                 let appearance = stackAppearances[popup.id] ?? .identity
                 let verticalConfiguration = resolvedVerticalConfiguration(for: popup.configuration)
                 popup.body
+                    .environment(\.isPopupPresented, snapshot == nil && presentedPopupIDs.contains(popup.id))
                     .environment(
                         \.popupAnchoredGeometry,
                         snapshot?.presentation.anchoredGeometry
@@ -129,6 +131,14 @@ public struct PopupView: View {
             height: environment.containerSize.height
         )
         .clipped()
+        .transaction(value: popups.map(\.id)) { transaction in
+            let enteringIDs = Set(popups.map(\.id)).subtracting(presentedPopupIDs)
+            guard !enteringIDs.isEmpty else { return }
+            transaction.addAnimationCompletion(criteria: .removed) {
+                let activeIDs = Set(popupStack.popups.map(\.id))
+                presentedPopupIDs.formUnion(enteringIDs.intersection(activeIDs))
+            }
+        }
         .animation(
             environment.accessibilityReduceMotion ? nil : .easeInOut(duration: 0.3),
             value: popups.map(\.id)
@@ -139,6 +149,8 @@ public struct PopupView: View {
             }
         }
         .onAppear {
+            // Initial host content has no insertion transaction; it is already laid out.
+            presentedPopupIDs.formUnion(popups.map(\.id))
             dismissalCoordinator.configure(
                 isRenderingActive: true,
                 reduceMotion: environment.accessibilityReduceMotion
@@ -151,6 +163,7 @@ public struct PopupView: View {
             )
         }
         .onChange(of: popups.map(\.id)) { _, activeIDs in
+            presentedPopupIDs.formIntersection(activeIDs)
             verticalInteractionStates = verticalInteractionStates.filter {
                 activeIDs.contains($0.key)
             }

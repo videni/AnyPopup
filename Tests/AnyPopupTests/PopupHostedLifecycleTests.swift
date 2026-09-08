@@ -6,6 +6,57 @@ import XCTest
 
 @MainActor
 final class PopupHostedLifecycleTests: XCTestCase {
+    func testInitiallyNonemptyHostPublishesPresented() async throws {
+        let probe = HostedMountProbe()
+        let harness = HostedPopupHarness(initialPopup: AnyPopup(HostedCenterPopup(probe: probe)))
+        defer { harness.close() }
+        try await harness.waitUntil { !probe.presentationFrames.isEmpty }
+        XCTAssertEqual(probe.presentationFrames.count, 1)
+    }
+
+    func testReduceMotionPublishesPresentedAtFullSize() async throws {
+        let probe = HostedMountProbe()
+        let harness = HostedPopupHarness(reduceMotion: true)
+        defer { harness.close() }
+        harness.stack.insert(AnyPopup(HostedCenterPopup(probe: probe)))
+        try await harness.waitUntil { !probe.presentationFrames.isEmpty }
+        XCTAssertEqual(probe.presentationFrames.first?.width, 270)
+    }
+
+    func testPresentedSignalArrivesAfterContentReachesFullSizeAtScreenCenter() async throws {
+        let probe = HostedMountProbe()
+        let harness = HostedPopupHarness()
+        defer { harness.close() }
+        harness.stack.insert(AnyPopup(HostedCenterPopup(probe: probe)))
+
+        try await harness.waitUntil { !probe.presentationFrames.isEmpty }
+
+        let frame = try XCTUnwrap(probe.presentationFrames.first)
+        XCTAssertEqual(frame.width, 270, accuracy: 1)
+        XCTAssertEqual(frame.height, 140, accuracy: 1)
+        XCTAssertEqual(frame.midX, 300, accuracy: 1)
+        XCTAssertEqual(frame.midY, 400, accuracy: 1)
+        XCTAssertEqual(probe.presentationFrames.count, 1)
+    }
+
+    func testAnimatedKeyboardEnvironmentMovesPresentedContentThroughIntermediatePositions() async throws {
+        let probe = HostedMountProbe()
+        let harness = HostedPopupHarness()
+        defer { harness.close() }
+        harness.stack.insert(AnyPopup(HostedCenterPopup(probe: probe)))
+        try await harness.waitUntil { !probe.presentationFrames.isEmpty }
+        probe.frames.removeAll()
+
+        withAnimation(.easeInOut(duration: 0.25)) {
+            harness.updateKeyboardOcclusion(400)
+        }
+        try await harness.waitUntil { abs((probe.frames.last?.midY ?? 0) - 200) < 1 }
+
+        XCTAssertTrue(probe.frames.contains { $0.midY > 210 && $0.midY < 390 },
+                      "Keyboard movement must interpolate, not jump directly to the target")
+        XCTAssertEqual(probe.presentationFrames.count, 1)
+    }
+
     func testDismissalPreservesMountedContentAndCompletesWithoutManualSignal() async throws {
         let probe = HostedMountProbe()
         let popup = AnyPopup(HostedCenterPopup(probe: probe))
@@ -28,6 +79,7 @@ final class PopupHostedLifecycleTests: XCTestCase {
         waiter.cancel()
 
         XCTAssertEqual(probe.appearances, 1, "Dismissing must not mount fresh content or rerun focus-on-appear")
+        XCTAssertTrue(probe.presentationFrames.isEmpty, "Cancelling insertion must not later mark content presented")
         XCTAssertFalse(harness.map.snapshot().isDismissalBlocking)
     }
 
@@ -100,18 +152,16 @@ private final class HostedPopupHarness {
     let stack = PopupStack(id: PopupStackID("hosted-\(UUID())"))
     let map = PopupInteractionMap()
     let window: NSWindow
-    let controller: NSHostingController<PopupView>
+    let controller: NSHostingController<HostedPopupRoot>
+    let geometry = HostedPopupGeometry()
 
-    init() {
+    init(initialPopup: AnyPopup? = nil, reduceMotion: Bool = false) {
         let size = CGSize(width: 600, height: 800)
-        controller = NSHostingController(rootView: PopupView(
-            popupStack: stack,
-            sceneSessionID: "hosted",
-            environment: PopupEnvironment(
-                containerSize: size, safeArea: EdgeInsets(),
-                keyboardOcclusionHeight: 0, accessibilityReduceMotion: false
-            ),
-            interactionMap: map
+        if let initialPopup {
+            stack.insert(initialPopup)
+        }
+        controller = NSHostingController(rootView: HostedPopupRoot(
+            stack: stack, map: map, geometry: geometry, reduceMotion: reduceMotion
         ))
         window = NSWindow(contentRect: CGRect(origin: .zero, size: size),
                           styleMask: [], backing: .buffered, defer: false)
@@ -122,15 +172,7 @@ private final class HostedPopupHarness {
     }
 
     func updateKeyboardOcclusion(_ height: CGFloat) {
-        controller.rootView = PopupView(
-            popupStack: stack,
-            sceneSessionID: "hosted",
-            environment: PopupEnvironment(
-                containerSize: CGSize(width: 600, height: 800), safeArea: EdgeInsets(),
-                keyboardOcclusionHeight: height, accessibilityReduceMotion: false
-            ),
-            interactionMap: map
-        )
+        geometry.keyboardHeight = height
     }
 
     func waitUntil(_ condition: () -> Bool) async throws {
@@ -153,9 +195,11 @@ private final class HostedPopupHarness {
 private final class HostedMountProbe {
     var appearances = 0
     var frames: [CGRect] = []
+    var presentationFrames: [CGRect] = []
 }
 
 private struct HostedCenterPopup: Popup {
+    @Environment(\.isPopupPresented) private var isPresented
     let probe: HostedMountProbe
     let popupConfig = ContainerPopupConfig.center(CenterPopupConfig().background(.none))
 
@@ -165,6 +209,11 @@ private struct HostedCenterPopup: Popup {
             .onAppear { probe.appearances += 1 }
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
                 probe.frames.append($0)
+            }
+            .onChange(of: isPresented, initial: true) { _, presented in
+                if presented, let frame = probe.frames.last {
+                    probe.presentationFrames.append(frame)
+                }
             }
     }
 }
@@ -182,5 +231,29 @@ private struct HostedMenuPopup: Popup {
         .frame(width: 120)
         .padding(.horizontal, 16)
         .padding(.vertical, 4)
+    }
+}
+
+@MainActor
+private final class HostedPopupGeometry: ObservableObject {
+    @Published var keyboardHeight: CGFloat = 0
+}
+
+private struct HostedPopupRoot: View {
+    let stack: PopupStack
+    let map: PopupInteractionMap
+    @ObservedObject var geometry: HostedPopupGeometry
+    let reduceMotion: Bool
+
+    var body: some View {
+        PopupView(
+            popupStack: stack,
+            sceneSessionID: "hosted",
+            environment: PopupEnvironment(
+                containerSize: CGSize(width: 600, height: 800), safeArea: EdgeInsets(),
+                keyboardOcclusionHeight: geometry.keyboardHeight, accessibilityReduceMotion: reduceMotion
+            ),
+            interactionMap: map
+        )
     }
 }
