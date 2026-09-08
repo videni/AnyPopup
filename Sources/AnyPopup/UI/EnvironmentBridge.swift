@@ -78,22 +78,22 @@ struct PopupSceneRootView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let containerSize = PopupSceneGeometry.fullContainerSize(
+            let fallbackContainerSize = PopupSceneGeometry.fullContainerSize(
                 contentSize: proxy.size,
                 safeArea: proxy.safeAreaInsets
+            )
+            let viewport = keyboardObserver.viewport(
+                fallbackContainerSize: fallbackContainerSize,
+                fallbackSafeArea: proxy.safeAreaInsets
             )
             PopupView(
                 popupStack: popupStack,
                 sceneSessionID: sceneSessionID,
-                environment: environmentBridge.popupEnvironment(
-                    containerSize: containerSize,
-                    safeArea: proxy.safeAreaInsets,
-                    keyboardOcclusionHeight: keyboardObserver.occlusionHeight
-                ),
+                environment: viewport.environment(reduceMotion: environmentBridge.reduceMotion),
                 defaults: defaults,
                 interactionMap: interactionMap
             )
-            .environment(\.popupContainerSize, containerSize)
+            .environment(\.popupContainerSize, viewport.containerSize)
             .ignoresSafeArea()
         }
         .environment(\.locale, environmentBridge.locale)
@@ -114,7 +114,11 @@ struct PopupSceneRootView: View {
 @MainActor
 final class PopupKeyboardObserver: NSObject, ObservableObject {
     @Published private(set) var occlusionHeight: CGFloat = 0
-    weak var window: UIWindow?
+    weak var window: UIWindow? {
+        didSet {
+            objectWillChange.send()
+        }
+    }
 
     init(notificationCenter: NotificationCenter = .default) {
         super.init()
@@ -134,6 +138,29 @@ final class PopupKeyboardObserver: NSObject, ObservableObject {
 
     deinit {
         NotificationCenter.default.removeObserver(self)
+    }
+
+    func viewport(
+        fallbackContainerSize: CGSize,
+        fallbackSafeArea: EdgeInsets
+    ) -> PopupViewport {
+        guard let window else {
+            return PopupViewport(
+                containerSize: fallbackContainerSize,
+                systemSafeArea: fallbackSafeArea,
+                keyboardOcclusionHeight: occlusionHeight
+            )
+        }
+        return PopupViewport(
+            containerSize: window.bounds.size,
+            systemSafeArea: EdgeInsets(
+                top: window.safeAreaInsets.top,
+                leading: window.safeAreaInsets.left,
+                bottom: window.safeAreaInsets.bottom,
+                trailing: window.safeAreaInsets.right
+            ),
+            keyboardOcclusionHeight: occlusionHeight
+        )
     }
 
     @objc private func update(_ notification: Notification) {

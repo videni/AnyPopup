@@ -4,6 +4,25 @@ import XCTest
 
 @MainActor
 final class EnvironmentBridgeTests: XCTestCase {
+    func testViewportDoesNotDoubleCountKeyboardExpandedSwiftUISafeArea() {
+        let viewport = PopupViewport(
+            containerSize: CGSize(width: 1_194, height: 834),
+            systemSafeArea: EdgeInsets(
+                top: 0,
+                leading: 0,
+                bottom: 20,
+                trailing: 0
+            ),
+            keyboardOcclusionHeight: 408
+        )
+
+        let environment = viewport.environment(reduceMotion: false)
+
+        XCTAssertEqual(environment.safeArea.bottom, 20)
+        XCTAssertEqual(environment.keyboardOcclusionHeight, 408)
+        XCTAssertEqual(environment.availableHeight, 406)
+    }
+
     func testSceneGeometryAddsSafeAreaBackToFullContainerSize() {
         let size = PopupSceneGeometry.fullContainerSize(
             contentSize: CGSize(width: 780, height: 550),
