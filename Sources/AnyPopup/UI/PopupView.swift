@@ -39,6 +39,7 @@ public struct PopupView: View {
     public var body: some View {
         let popups = popupStack.popups
         let dismissalSnapshots = dismissalCoordinator.snapshots
+        let renderItems = renderItems(popups: popups, snapshots: dismissalSnapshots)
         let stackAppearances = resolvedStackAppearances(for: popups)
         let inputs = popups.map { popup in
             layoutInput(
@@ -63,25 +64,18 @@ public struct PopupView: View {
             interactionMap: interactionMap,
             presentationStore: presentationStore
         ) {
-            ForEach(Array(popups.enumerated()), id: \.element.id) { index, popup in
-                let chrome = resolvedChrome(for: popup.configuration)
+            ForEach(renderItems) { item in
+                let chrome = item.snapshot.map { PopupChrome($0.presentation) }
+                    ?? resolvedChrome(for: item.popup.configuration)
                 if chrome.backdrop != .none {
                     PopupBackdrop(policy: chrome.backdrop)
                         .allowsHitTesting(false)
-                        .popupLayoutRole(.backdrop(popup.id))
-                        .zIndex(Double(index * 3))
-                }
-            }
-
-            ForEach(dismissalSnapshots) { snapshot in
-                if snapshot.presentation.backdrop != .none {
-                    PopupBackdrop(policy: snapshot.presentation.backdrop)
-                        .allowsHitTesting(false)
                         .modifier(PopupBackdropRemovalModifier(
-                            isDeparting: snapshot.isDeparting
+                            isDeparting: item.snapshot?.isDeparting ?? false
                         ))
-                        .popupLayoutRole(.dismissalBackdrop(snapshot.id))
-                        .zIndex(snapshot.presentation.zIndex * 3)
+                        .popupLayoutRole(item.snapshot == nil
+                            ? .backdrop(item.id) : .dismissalBackdrop(item.id))
+                        .zIndex(item.zIndex * 3)
                 }
             }
 
@@ -90,67 +84,44 @@ public struct PopupView: View {
                 .allowsHitTesting(shieldCapturesTouches)
                 .zIndex(shieldLevel * 3 + 1)
 
-            ForEach(Array(popups.enumerated()), id: \.element.id) { index, popup in
-                let chrome = resolvedChrome(for: popup.configuration)
+            ForEach(renderItems) { item in
+                let popup = item.popup
+                let snapshot = item.snapshot
+                let chrome = snapshot.map { PopupChrome($0.presentation) }
+                    ?? resolvedChrome(for: popup.configuration)
                 let appearance = stackAppearances[popup.id] ?? .identity
-                let verticalConfiguration = resolvedVerticalConfiguration(
-                    for: popup.configuration
-                )
+                let verticalConfiguration = resolvedVerticalConfiguration(for: popup.configuration)
                 popup.body
                     .environment(
                         \.popupAnchoredGeometry,
-                        presentationStore.anchoredGeometry(for: popup.id)
+                        snapshot?.presentation.anchoredGeometry
+                            ?? presentationStore.anchoredGeometry(for: popup.id)
                     )
                     .modifier(PopupChromeModifier(
                         chrome: chrome,
-                        stackOverlayOpacity: appearance.overlayOpacity,
+                        stackOverlayOpacity: snapshot?.presentation.stackOverlayOpacity
+                            ?? appearance.overlayOpacity,
                         fillsResolvedFrame: PopupRenderSizingPolicy.fillsResolvedFrame(
                             for: popup.configuration
                         )
                     ))
-                    .opacity(appearance.opacity)
-                    .simultaneousGesture(
-                        verticalDragGesture(
-                            popup: popup,
-                            configuration: verticalConfiguration
-                        ),
-                        including: index == topIndex
-                            && verticalConfiguration?.dragConfiguration.isEnabled == true
-                            ? .all
-                            : .none
-                    )
-                    .popupLayoutRole(.popup(popup.id))
-                    .zIndex(Double(index * 3 + 2))
-            }
-
-            ForEach(dismissalSnapshots) { snapshot in
-                snapshot.popup.body
-                    .environment(
-                        \.popupAnchoredGeometry,
-                        snapshot.presentation.anchoredGeometry
-                    )
-                    .modifier(PopupChromeModifier(
-                        chrome: PopupChrome(snapshot.presentation),
-                        fillsResolvedFrame: PopupRenderSizingPolicy.fillsResolvedFrame(
-                            for: snapshot.popup.configuration
-                        ),
-                        renderRole: .dismissalSnapshot
-                    ))
-                    .opacity(snapshot.presentation.opacity)
+                    .opacity(snapshot?.presentation.opacity ?? appearance.opacity)
                     .modifier(PopupRemovalEffect(
-                        transition: snapshot.presentation.removalTransition,
-                        isDeparting: snapshot.isDeparting,
+                        transition: chrome.removalTransition,
+                        isDeparting: snapshot?.isDeparting ?? false,
                         containerSize: environment.containerSize
                     ))
-                    .popupLayoutRole(.dismissalPopup(
-                        snapshot.id,
-                        snapshot.presentation.frame
-                    ))
-                    .allowsHitTesting(false)
-                    .zIndex(snapshot.presentation.zIndex * 3 + 2)
-                    .task {
-                        await startDismissal(snapshot)
-                    }
+                    .simultaneousGesture(
+                        verticalDragGesture(popup: popup, configuration: verticalConfiguration),
+                        including: snapshot == nil && item.zIndex == Double(topIndex)
+                            && verticalConfiguration?.dragConfiguration.isEnabled == true
+                            ? .all : .none
+                    )
+                    .allowsHitTesting(snapshot == nil)
+                    .popupLayoutRole(snapshot.map {
+                        .dismissalPopup($0.id, $0.presentation.frame)
+                    } ?? .popup(popup.id))
+                    .zIndex(item.zIndex * 3 + 2)
             }
         }
         .frame(
@@ -162,6 +133,11 @@ public struct PopupView: View {
             environment.accessibilityReduceMotion ? nil : .easeInOut(duration: 0.3),
             value: popups.map(\.id)
         )
+        .task(id: dismissalSnapshots.map(\.id)) {
+            for snapshot in dismissalSnapshots {
+                await startDismissal(snapshot)
+            }
+        }
         .onAppear {
             dismissalCoordinator.configure(
                 isRenderingActive: true,
@@ -192,6 +168,25 @@ public struct PopupView: View {
 }
 
 private extension PopupView {
+    func renderItems(
+        popups: [AnyPopup],
+        snapshots: [PopupDismissalSnapshot]
+    ) -> [PopupRenderItem] {
+        let departingIDs = Set(snapshots.map(\.id))
+        let active = popups.enumerated().compactMap { index, popup in
+            departingIDs.contains(popup.id) ? nil : PopupRenderItem(
+                popup: popup, snapshot: nil, zIndex: Double(index)
+            )
+        }
+        let departing = snapshots.map { snapshot in
+            PopupRenderItem(
+                popup: snapshot.popup, snapshot: snapshot,
+                zIndex: snapshot.presentation.zIndex
+            )
+        }
+        return (active + departing).sorted { $0.zIndex < $1.zIndex }
+    }
+
     func layoutInput(
         _ popup: AnyPopup,
         stackAppearance: PopupStackItemAppearance
@@ -696,5 +691,20 @@ private extension PopupTransition {
         case let .moveFrom(edge), let .moveTo(edge):
             .move(edge: edge)
         }
+    }
+}
+
+@MainActor
+private struct PopupRenderItem: Identifiable {
+    nonisolated let id: PopupID
+    let popup: AnyPopup
+    let snapshot: PopupDismissalSnapshot?
+    let zIndex: Double
+
+    init(popup: AnyPopup, snapshot: PopupDismissalSnapshot?, zIndex: Double) {
+        id = popup.id
+        self.popup = popup
+        self.snapshot = snapshot
+        self.zIndex = zIndex
     }
 }

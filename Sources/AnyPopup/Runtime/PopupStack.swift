@@ -81,6 +81,8 @@ private extension PopupStack {
 
         let oldTopID = popups.last?.id
         let removed = indices.map { popups[$0] }
+        // Publish the visual handoff before removing active content so the scene stays keyed.
+        let dismissalBatch = dismissalCoordinator.begin(removed)
         for index in indices.reversed() {
             popups.remove(at: index)
         }
@@ -100,7 +102,7 @@ private extension PopupStack {
             inserted: nil,
             removed: removed,
             focused: focused,
-            dismissalBatch: dismissalCoordinator.begin(removed)
+            dismissalBatch: dismissalBatch
         )
     }
 }

@@ -23,6 +23,7 @@ public final class PopupSceneController {
     private var cancellables: Set<AnyCancellable> = []
     private var hasStarted = false
     private var isSystemPresentationActive = false
+    private var dismissingPopupIDs: Set<PopupID> = []
 
     public init(
         windowScene: UIWindowScene,
@@ -59,7 +60,7 @@ public final class PopupSceneController {
             popupStack.dismissalCoordinator.$snapshots
         )
         .sink { [weak self] popups, snapshots in
-            self?.updateKeyWindow(hasVisualContent: !popups.isEmpty || !snapshots.isEmpty)
+            self?.updateVisualContent(popups: popups, snapshots: snapshots)
         }
         .store(in: &cancellables)
     }
@@ -309,6 +310,17 @@ final class PopupSceneControllerRegistry {
 }
 
 private extension PopupSceneController {
+    func updateVisualContent(popups: [AnyPopup], snapshots: [PopupDismissalSnapshot]) {
+        let shouldEndEditing = snapshots.contains {
+            !dismissingPopupIDs.contains($0.id) && $0.popup.dismissKeyboardOnDismissal
+        }
+        dismissingPopupIDs = Set(snapshots.map(\.id))
+        if shouldEndEditing {
+            window.endEditing(true)
+        }
+        updateKeyWindow(hasVisualContent: !popups.isEmpty || !snapshots.isEmpty)
+    }
+
     func installRootView() {
         let root = PopupSceneRootView(
             popupStack: popupStack,
