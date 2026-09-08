@@ -39,10 +39,6 @@ public struct PopupView: View {
     public var body: some View {
         let popups = popupStack.popups
         let dismissalSnapshots = dismissalCoordinator.snapshots
-        let renderEntries = PopupRenderEntry.resolve(
-            active: popups,
-            dismissing: dismissalSnapshots
-        )
         let stackAppearances = resolvedStackAppearances(for: popups)
         let inputs = popups.map { popup in
             layoutInput(
@@ -94,53 +90,65 @@ public struct PopupView: View {
                 .allowsHitTesting(shieldCapturesTouches)
                 .zIndex(shieldLevel * 3 + 1)
 
-            ForEach(renderEntries) { entry in
-                let popup = entry.popup
-                let snapshot = entry.snapshot
-                let chrome = snapshot.map { PopupChrome($0.presentation) }
-                    ?? resolvedChrome(for: popup.configuration)
-                let activeAppearance = stackAppearances[popup.id] ?? .identity
-                let overlayOpacity = snapshot?.presentation.stackOverlayOpacity
-                    ?? activeAppearance.overlayOpacity
-                let opacity = snapshot?.presentation.opacity ?? activeAppearance.opacity
-                let verticalConfiguration = snapshot == nil
-                    ? resolvedVerticalConfiguration(for: popup.configuration)
-                    : nil
-                entry.popup.body
+            ForEach(Array(popups.enumerated()), id: \.element.id) { index, popup in
+                let chrome = resolvedChrome(for: popup.configuration)
+                let appearance = stackAppearances[popup.id] ?? .identity
+                let verticalConfiguration = resolvedVerticalConfiguration(
+                    for: popup.configuration
+                )
+                popup.body
                     .environment(
                         \.popupAnchoredGeometry,
-                        snapshot?.presentation.anchoredGeometry
-                            ?? presentationStore.anchoredGeometry(for: popup.id)
+                        presentationStore.anchoredGeometry(for: popup.id)
                     )
                     .modifier(PopupChromeModifier(
                         chrome: chrome,
-                        stackOverlayOpacity: overlayOpacity,
+                        stackOverlayOpacity: appearance.overlayOpacity,
                         fillsResolvedFrame: PopupRenderSizingPolicy.fillsResolvedFrame(
                             for: popup.configuration
-                        ),
-                        renderRole: snapshot == nil ? .live : .dismissalSnapshot
+                        )
                     ))
-                    .opacity(opacity)
+                    .opacity(appearance.opacity)
                     .simultaneousGesture(
                         verticalDragGesture(
                             popup: popup,
                             configuration: verticalConfiguration
                         ),
-                        including: entry.activeIndex == topIndex
+                        including: index == topIndex
                             && verticalConfiguration?.dragConfiguration.isEnabled == true
                             ? .all
                             : .none
                     )
+                    .popupLayoutRole(.popup(popup.id))
+                    .zIndex(Double(index * 3 + 2))
+            }
+
+            ForEach(dismissalSnapshots) { snapshot in
+                snapshot.popup.body
+                    .environment(
+                        \.popupAnchoredGeometry,
+                        snapshot.presentation.anchoredGeometry
+                    )
+                    .modifier(PopupChromeModifier(
+                        chrome: PopupChrome(snapshot.presentation),
+                        fillsResolvedFrame: PopupRenderSizingPolicy.fillsResolvedFrame(
+                            for: snapshot.popup.configuration
+                        ),
+                        renderRole: .dismissalSnapshot
+                    ))
+                    .opacity(snapshot.presentation.opacity)
                     .modifier(PopupRemovalEffect(
-                        transition: snapshot?.presentation.removalTransition ?? .identity,
-                        isDeparting: entry.phase == .departing,
+                        transition: snapshot.presentation.removalTransition,
+                        isDeparting: snapshot.isDeparting,
                         containerSize: environment.containerSize
                     ))
-                    .popupLayoutRole(layoutRole(for: entry))
-                    .allowsHitTesting(snapshot == nil)
-                    .zIndex(entry.zIndex * 3 + 2)
-                    .task(id: entry.dismissalTaskID) {
-                        guard let snapshot else { return }
+                    .popupLayoutRole(.dismissalPopup(
+                        snapshot.id,
+                        snapshot.presentation.frame
+                    ))
+                    .allowsHitTesting(false)
+                    .zIndex(snapshot.presentation.zIndex * 3 + 2)
+                    .task {
                         await startDismissal(snapshot)
                     }
             }
@@ -184,13 +192,6 @@ public struct PopupView: View {
 }
 
 private extension PopupView {
-    func layoutRole(for entry: PopupRenderEntry) -> PopupLayoutRole {
-        guard let snapshot = entry.snapshot else {
-            return .popup(entry.id)
-        }
-        return .dismissalPopup(snapshot.id, snapshot.presentation.frame)
-    }
-
     func layoutInput(
         _ popup: AnyPopup,
         stackAppearance: PopupStackItemAppearance
@@ -288,7 +289,6 @@ private extension PopupView {
 
     func startDismissal(_ snapshot: PopupDismissalSnapshot) async {
         guard dismissalCoordinator.claimStart(identity: snapshot.id) else { return }
-        await dismissalCoordinator.waitBeforeDeparture(for: snapshot.popup)
         guard !environment.accessibilityReduceMotion,
             snapshot.presentation.removalTransition != .identity else {
             dismissalCoordinator.complete(identity: snapshot.id)
