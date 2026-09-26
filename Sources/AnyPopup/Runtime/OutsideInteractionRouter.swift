@@ -42,7 +42,7 @@ public enum OutsideInteractionRouter {
         switch topPolicy {
         case .consume:
             return .consume
-        case .dismissTop:
+        case .dismissTop, .dismissKeyboardFirst:
             return .dismissTop
         case .dismissToHitPopup:
             guard let hit = regions.dropLast().last(where: { $0.frame.contains(point) }) else {

@@ -87,11 +87,24 @@ public enum PopupPresentationResolver {
             throw PopupPresentationError.invalidAnchorFrame
         }
 
-        let resolved = config.resolve(in: environment, defaults: defaults.anchored).configuration
+        var resolved = config.resolve(in: environment, defaults: defaults.anchored).configuration
+        let containerFrame = availableFrame(
+            environment: environment,
+            safeArea: .contained,
+            keyboardAvoidance: resolved.keyboardAvoidance
+        ).inset(by: resolved.padding)
+        if resolved.adaptsToAvailableSpace {
+            resolved = adaptiveAnchoredConfig(
+                resolved,
+                contentSize: contentSize,
+                anchorFrame: anchorFrame,
+                containerFrame: containerFrame
+            )
+        }
         let geometry = AnchoredPopupGeometry.resolve(
             contentSize: contentSize,
             anchorFrame: anchorFrame,
-            containerFrame: safeAreaFrame(environment).inset(by: resolved.padding),
+            containerFrame: containerFrame,
             config: resolved
         )
         return presentation(
@@ -107,6 +120,37 @@ public enum PopupPresentationResolver {
 
 private extension PopupPresentationResolver {
     static let disabledDrag = DragPolicy(isEnabled: false, direction: .down)
+
+    static func adaptiveAnchoredConfig(
+        _ config: AnchoredPopupConfig,
+        contentSize: CGSize,
+        anchorFrame: CGRect,
+        containerFrame: CGRect
+    ) -> AnchoredPopupConfig {
+        let size = ContainerPopupGeometry.resolvedSize(
+            contentSize: contentSize,
+            availableSize: containerFrame.size,
+            policy: config.size,
+            clampsToAvailableSize: false
+        )
+        let gap: CGFloat = 8
+        let bounds = containerFrame.insetBy(
+            dx: config.screenAvoidance.padding,
+            dy: config.screenAvoidance.padding
+        )
+        if bounds.maxX - anchorFrame.maxX >= size.width + gap {
+            return config.anchor(source: .right, popup: .left).offset(x: gap, y: 0)
+        }
+        let below = bounds.maxY - anchorFrame.maxY
+        let above = anchorFrame.minY - bounds.minY
+        let useBelow = below >= min(size.height, 240) + gap || below >= above
+        let verticalSpace = max(0, (useBelow ? below : above) - gap)
+        let height = min(size.height, max(120, verticalSpace))
+        return config
+            .size(width: .fixed(size.width), height: .fixed(height))
+            .anchor(source: useBelow ? .bottom : .top, popup: useBelow ? .top : .bottom)
+            .offset(x: 0, y: useBelow ? gap : -gap)
+    }
 
     static func presentation<Config>(
         frame: CGRect,

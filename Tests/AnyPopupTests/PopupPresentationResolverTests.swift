@@ -78,6 +78,59 @@ final class PopupPresentationResolverTests: XCTestCase {
         XCTAssertNotNil(presentation.anchoredGeometry)
     }
 
+    func testAnchoredPopupStaysAboveKeyboardWhenEnabled() throws {
+        let environment = PopupEnvironment(
+            containerSize: CGSize(width: 1_000, height: 800),
+            safeArea: EdgeInsets(top: 20, leading: 0, bottom: 20, trailing: 0),
+            keyboardOcclusionHeight: 400,
+            accessibilityReduceMotion: false
+        )
+        let config = AnchoredPopupConfig()
+            .size(width: .fixed(400), height: .fixed(240))
+            .anchor(source: .right, popup: .left)
+            .screenAvoidance(edges: .all, padding: 8)
+            .keyboardAvoidance(.moveIntoVisibleRegion)
+
+        let presentation = try PopupPresentationResolver.resolve(
+            config: config,
+            environment: environment,
+            contentSize: CGSize(width: 400, height: 240),
+            anchorFrame: CGRect(x: 100, y: 350, width: 40, height: 20)
+        )
+
+        XCTAssertEqual(presentation.frame.maxY, 372)
+    }
+
+    func testAdaptiveAnchorPrefersRightEvenInPortrait() throws {
+        let presentation = try PopupPresentationResolver.resolve(
+            config: AnchoredPopupConfig()
+                .size(width: .fixed(400), height: .fixed(430))
+                .screenAvoidance(edges: .all, padding: 8)
+                .adaptivePlacement(),
+            environment: environment(width: 834, height: 1_194),
+            contentSize: CGSize(width: 400, height: 430),
+            anchorFrame: CGRect(x: 100, y: 500, width: 100, height: 30)
+        )
+
+        XCTAssertEqual(presentation.frame.minX, 208)
+        XCTAssertEqual(presentation.anchoredGeometry?.sourcePointInPopup.x, -8)
+    }
+
+    func testAdaptiveAnchorMovesBelowWhenRightSpaceRunsOut() throws {
+        let presentation = try PopupPresentationResolver.resolve(
+            config: AnchoredPopupConfig()
+                .size(width: .fixed(400), height: .fixed(430))
+                .screenAvoidance(edges: .all, padding: 8)
+                .adaptivePlacement(),
+            environment: environment(width: 834, height: 1_194),
+            contentSize: CGSize(width: 400, height: 430),
+            anchorFrame: CGRect(x: 500, y: 300, width: 100, height: 30)
+        )
+
+        XCTAssertEqual(presentation.frame.minY, 338)
+        XCTAssertEqual(presentation.anchoredGeometry?.sourcePointInPopup.y, -8)
+    }
+
     func testMissingAndInvalidAnchorFailExplicitly() {
         XCTAssertThrowsError(
             try PopupPresentationResolver.resolve(

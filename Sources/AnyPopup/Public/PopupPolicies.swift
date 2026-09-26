@@ -18,6 +18,7 @@ enum PopupConfigurationField: Sendable, Hashable {
     case popupAnchor
     case offset
     case screenAvoidance
+    case adaptivePlacement
     case horizontalAlignment
     case containerOffset
 }
@@ -108,6 +109,7 @@ public enum PopupTransition: Sendable, Equatable {
 public enum OutsideInteractionPolicy: Sendable, Equatable {
     case consume
     case dismissTop
+    case dismissKeyboardFirst
     case dismissToHitPopup
     case passThrough
 }

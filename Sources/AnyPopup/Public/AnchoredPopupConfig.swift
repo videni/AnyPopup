@@ -21,6 +21,8 @@ public struct AnchoredPopupConfig: PopupConfiguration,
     public var popupAnchor: PopupAnchorPoint { didSet { explicitFields.insert(.popupAnchor) } }
     public var offset: CGSize { didSet { explicitFields.insert(.offset) } }
     public var screenAvoidance: ScreenAvoidancePolicy { didSet { explicitFields.insert(.screenAvoidance) } }
+    public var keyboardAvoidance: PopupKeyboardAvoidance { didSet { explicitFields.insert(.keyboardAvoidance) } }
+    public var adaptsToAvailableSpace: Bool { didSet { explicitFields.insert(.adaptivePlacement) } }
 
     public init() {
         size = .content
@@ -35,6 +37,8 @@ public struct AnchoredPopupConfig: PopupConfiguration,
         popupAnchor = .top
         offset = .zero
         screenAvoidance = .init(edges: .horizontal, padding: 16)
+        keyboardAvoidance = .none
+        adaptsToAvailableSpace = false
     }
 
     public func anchor(source: PopupAnchorPoint, popup: PopupAnchorPoint) -> Self {
@@ -65,6 +69,18 @@ public struct AnchoredPopupConfig: PopupConfiguration,
     public func screenAvoidance(edges: Edge.Set, padding: CGFloat) -> Self {
         var copy = self
         copy.screenAvoidance = .init(edges: edges, padding: padding)
+        return copy
+    }
+
+    public func keyboardAvoidance(_ policy: PopupKeyboardAvoidance) -> Self {
+        var copy = self
+        copy.keyboardAvoidance = policy
+        return copy
+    }
+
+    public func adaptivePlacement() -> Self {
+        var copy = self
+        copy.adaptsToAvailableSpace = true
         return copy
     }
 
@@ -150,6 +166,8 @@ extension AnchoredPopupConfig {
         inherit(.popupAnchor, defaults: defaults, result: &result, at: \.popupAnchor)
         inherit(.offset, defaults: defaults, result: &result, at: \.offset)
         inherit(.screenAvoidance, defaults: defaults, result: &result, at: \.screenAvoidance)
+        inherit(.keyboardAvoidance, defaults: defaults, result: &result, at: \.keyboardAvoidance)
+        inherit(.adaptivePlacement, defaults: defaults, result: &result, at: \.adaptsToAvailableSpace)
         return result
     }
 

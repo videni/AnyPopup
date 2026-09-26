@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 public struct PopupView: View {
     @ObservedObject private var popupStack: PopupStack
@@ -272,7 +275,19 @@ private extension PopupView {
     }
 
     func routeOutsideInteraction(_ point: CGPoint) {
-        switch interactionMap.action(at: point) {
+        let action = interactionMap.action(at: point)
+        if action == .dismissTop,
+            interactionMap.snapshot().topPolicy == .dismissKeyboardFirst,
+            environment.keyboardOcclusionHeight > 0 {
+            #if canImport(UIKit)
+            let resigned = UIApplication.shared.sendAction(
+                #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil
+            )
+            print("MT-PopupOutside keyboardDismiss sent=\(resigned)")
+            #endif
+            return
+        }
+        switch action {
         case .consume, .routeToPopup:
             break
         case let .passThrough(target):
