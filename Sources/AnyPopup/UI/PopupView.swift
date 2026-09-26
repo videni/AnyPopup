@@ -280,10 +280,9 @@ private extension PopupView {
             interactionMap.snapshot().topPolicy == .dismissKeyboardFirst,
             environment.keyboardOcclusionHeight > 0 {
             #if canImport(UIKit)
-            let resigned = UIApplication.shared.sendAction(
+            UIApplication.shared.sendAction(
                 #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil
             )
-            print("MT-PopupOutside keyboardDismiss sent=\(resigned)")
             #endif
             return
         }
