@@ -39,6 +39,18 @@ final class PopupHostedLifecycleTests: XCTestCase {
         XCTAssertEqual(probe.presentationFrames.count, 1)
     }
 
+    func testScaleInsertionKeepsContentMountedAfterAnimation() async throws {
+        let probe = HostedMountProbe()
+        let harness = HostedPopupHarness()
+        defer { harness.close() }
+        harness.stack.insert(AnyPopup(HostedCenterPopup(probe: probe)))
+
+        try await harness.waitUntil { !probe.presentationFrames.isEmpty }
+
+        XCTAssertEqual(probe.appearances, 1,
+            "Completing the scale animation must not recreate popup content")
+    }
+
     func testAnimatedKeyboardEnvironmentMovesPresentedContentThroughIntermediatePositions() async throws {
         let probe = HostedMountProbe()
         let harness = HostedPopupHarness()

@@ -96,6 +96,8 @@ public struct PopupView: View {
                 let appearance = stackAppearances[popup.id] ?? .identity
                 let verticalConfiguration = resolvedVerticalConfiguration(for: popup.configuration)
                 popup.body
+                    // Keep controls on one composited layer throughout scale transitions.
+                    .compositingGroup()
                     .environment(\.isPopupPresented, snapshot == nil && presentedPopupIDs.contains(popup.id))
                     .environment(
                         \.popupAnchoredGeometry,
