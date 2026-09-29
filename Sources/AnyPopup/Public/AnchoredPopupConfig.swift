@@ -1,5 +1,10 @@
 import SwiftUI
 
+public enum AnchoredAdaptiveAxis: Sendable, Equatable {
+    case horizontal
+    case vertical
+}
+
 public struct AnchoredPopupConfig: PopupConfiguration,
     PopupSizingConfigurable,
     PopupPaddingConfigurable,
@@ -23,6 +28,7 @@ public struct AnchoredPopupConfig: PopupConfiguration,
     public var screenAvoidance: ScreenAvoidancePolicy { didSet { explicitFields.insert(.screenAvoidance) } }
     public var keyboardAvoidance: PopupKeyboardAvoidance { didSet { explicitFields.insert(.keyboardAvoidance) } }
     public var adaptsToAvailableSpace: Bool { didSet { explicitFields.insert(.adaptivePlacement) } }
+    public var adaptiveAxis: AnchoredAdaptiveAxis { didSet { explicitFields.insert(.adaptiveAxis) } }
 
     public init() {
         size = .content
@@ -39,6 +45,7 @@ public struct AnchoredPopupConfig: PopupConfiguration,
         screenAvoidance = .init(edges: .horizontal, padding: 16)
         keyboardAvoidance = .none
         adaptsToAvailableSpace = false
+        adaptiveAxis = .horizontal
     }
 
     public func anchor(source: PopupAnchorPoint, popup: PopupAnchorPoint) -> Self {
@@ -78,9 +85,10 @@ public struct AnchoredPopupConfig: PopupConfiguration,
         return copy
     }
 
-    public func adaptivePlacement() -> Self {
+    public func adaptivePlacement(prefer axis: AnchoredAdaptiveAxis = .horizontal) -> Self {
         var copy = self
         copy.adaptsToAvailableSpace = true
+        copy.adaptiveAxis = axis
         return copy
     }
 
@@ -168,6 +176,7 @@ extension AnchoredPopupConfig {
         inherit(.screenAvoidance, defaults: defaults, result: &result, at: \.screenAvoidance)
         inherit(.keyboardAvoidance, defaults: defaults, result: &result, at: \.keyboardAvoidance)
         inherit(.adaptivePlacement, defaults: defaults, result: &result, at: \.adaptsToAvailableSpace)
+        inherit(.adaptiveAxis, defaults: defaults, result: &result, at: \.adaptiveAxis)
         return result
     }
 

@@ -19,6 +19,7 @@ enum PopupConfigurationField: Sendable, Hashable {
     case offset
     case screenAvoidance
     case adaptivePlacement
+    case adaptiveAxis
     case horizontalAlignment
     case containerOffset
 }

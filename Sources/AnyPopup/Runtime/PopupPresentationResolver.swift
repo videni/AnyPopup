@@ -138,7 +138,8 @@ private extension PopupPresentationResolver {
             dx: config.screenAvoidance.padding,
             dy: config.screenAvoidance.padding
         )
-        if bounds.maxX - anchorFrame.maxX >= size.width + gap {
+        if config.adaptiveAxis == .horizontal,
+            bounds.maxX - anchorFrame.maxX >= size.width + gap {
             return config.anchor(source: .right, popup: .left).offset(x: gap, y: 0)
         }
         let below = bounds.maxY - anchorFrame.maxY

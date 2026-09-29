@@ -131,6 +131,36 @@ final class PopupPresentationResolverTests: XCTestCase {
         XCTAssertEqual(presentation.anchoredGeometry?.sourcePointInPopup.y, -8)
     }
 
+    func testVerticalAdaptiveAnchorPrefersBelowEvenWithRightSpace() throws {
+        let presentation = try PopupPresentationResolver.resolve(
+            config: AnchoredPopupConfig()
+                .size(width: .fixed(300), height: .fixed(160))
+                .screenAvoidance(edges: .all, padding: 8)
+                .adaptivePlacement(prefer: .vertical),
+            environment: environment(width: 834, height: 800),
+            contentSize: CGSize(width: 300, height: 160),
+            anchorFrame: CGRect(x: 100, y: 100, width: 40, height: 30)
+        )
+
+        XCTAssertEqual(presentation.frame.minY, 138)
+        XCTAssertEqual(presentation.anchoredGeometry?.sourcePointInPopup.y, -8)
+    }
+
+    func testVerticalAdaptiveAnchorMovesAboveNearBottom() throws {
+        let presentation = try PopupPresentationResolver.resolve(
+            config: AnchoredPopupConfig()
+                .size(width: .fixed(300), height: .fixed(160))
+                .screenAvoidance(edges: .all, padding: 8)
+                .adaptivePlacement(prefer: .vertical),
+            environment: environment(width: 834, height: 800),
+            contentSize: CGSize(width: 300, height: 160),
+            anchorFrame: CGRect(x: 100, y: 700, width: 40, height: 30)
+        )
+
+        XCTAssertEqual(presentation.frame.maxY, 692)
+        XCTAssertEqual(presentation.anchoredGeometry?.sourcePointInPopup.y, 168)
+    }
+
     func testMissingAndInvalidAnchorFailExplicitly() {
         XCTAssertThrowsError(
             try PopupPresentationResolver.resolve(
