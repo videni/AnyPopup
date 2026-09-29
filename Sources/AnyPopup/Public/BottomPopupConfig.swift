@@ -54,7 +54,8 @@ public extension BottomPopupConfig {
             isEnabled: drag.isEnabled,
             activationArea: drag.activationArea,
             dismissalThreshold: drag.dismissalThreshold,
-            detents: detents
+            detents: detents,
+            releasePolicy: drag.releasePolicy
         )
     }
 }

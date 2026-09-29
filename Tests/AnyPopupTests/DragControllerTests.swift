@@ -191,4 +191,36 @@ final class DragControllerTests: XCTestCase {
             .cancel
         )
     }
+
+    func testContinuousBottomSheetKeepsReleasedHeightUntilBelowThirtyPercent() {
+        let configuration = PopupDragConfiguration.bottom(
+            releasePolicy: .continuous(dismissBelowFraction: 0.3))
+
+        XCTAssertEqual(DragController.resolve(
+            translation: 290, velocity: 0, extent: 1_000,
+            currentHeight: 600, contentHeight: 600, configuration: configuration
+        ), .snap(height: 310))
+        XCTAssertEqual(DragController.resolve(
+            translation: 300, velocity: 0, extent: 1_000,
+            currentHeight: 600, contentHeight: 600, configuration: configuration
+        ), .snap(height: 300))
+        XCTAssertEqual(DragController.resolve(
+            translation: 310, velocity: 0, extent: 1_000,
+            currentHeight: 600, contentHeight: 600, configuration: configuration
+        ), .dismiss)
+        XCTAssertEqual(DragController.resolve(
+            translation: -160, velocity: 0, extent: 1_000,
+            currentHeight: 600, contentHeight: 600, configuration: configuration
+        ), .snap(height: 760))
+    }
+
+    func testContinuousReleaseIgnoresFlingWhenHeightStaysAboveClosingLine() {
+        let configuration = PopupDragConfiguration.bottom(
+            releasePolicy: .continuous(dismissBelowFraction: 0.3))
+
+        XCTAssertEqual(DragController.resolve(
+            translation: 100, velocity: 2_000, extent: 1_000,
+            currentHeight: 600, contentHeight: 600, configuration: configuration
+        ), .snap(height: 500))
+    }
 }

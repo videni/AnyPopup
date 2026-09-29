@@ -33,7 +33,15 @@ public struct PopupPresentation: Sendable, Equatable {
 
 extension PopupPresentation {
     func applying(_ input: PopupLayoutInput) -> Self {
-        let translatedFrame = frame.offsetBy(dx: 0, dy: input.verticalTranslation)
+        var baseFrame = frame
+        if let height = input.heightOverride, height.isFinite {
+            let resolvedHeight = max(0, height)
+            if drag.direction == .down {
+                baseFrame.origin.y = frame.maxY - resolvedHeight
+            }
+            baseFrame.size.height = resolvedHeight
+        }
+        let translatedFrame = baseFrame.offsetBy(dx: 0, dy: input.verticalTranslation)
         let appearance = input.stackAppearance
         let scale = max(0, appearance.transform.scale)
         let scaledSize = CGSize(

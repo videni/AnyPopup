@@ -11,19 +11,22 @@ public struct PopupDragConfiguration: Sendable, Equatable {
     public let activationArea: CGFloat
     public let dismissalThreshold: Double
     public let detents: [PopupDetent]
+    public let releasePolicy: PopupDragReleasePolicy
 
     public static func top(
         isEnabled: Bool = true,
         activationArea: CGFloat = 30,
         dismissalThreshold: Double = 1.0 / 3.0,
-        detents: [PopupDetent] = []
+        detents: [PopupDetent] = [],
+        releasePolicy: PopupDragReleasePolicy = .detents
     ) -> Self {
         Self(
             edge: .top,
             isEnabled: isEnabled,
             activationArea: activationArea,
             dismissalThreshold: dismissalThreshold,
-            detents: detents
+            detents: detents,
+            releasePolicy: releasePolicy
         )
     }
 
@@ -31,14 +34,16 @@ public struct PopupDragConfiguration: Sendable, Equatable {
         isEnabled: Bool = true,
         activationArea: CGFloat = 30,
         dismissalThreshold: Double = 1.0 / 3.0,
-        detents: [PopupDetent] = []
+        detents: [PopupDetent] = [],
+        releasePolicy: PopupDragReleasePolicy = .detents
     ) -> Self {
         Self(
             edge: .bottom,
             isEnabled: isEnabled,
             activationArea: activationArea,
             dismissalThreshold: dismissalThreshold,
-            detents: detents
+            detents: detents,
+            releasePolicy: releasePolicy
         )
     }
 }
@@ -91,6 +96,17 @@ public enum DragController {
             extent > 0,
             currentHeight.isFinite,
             contentHeight.isFinite else { return .cancel }
+
+        if case let .continuous(dismissBelowFraction) = configuration.releasePolicy {
+            let height = proposedHeight(
+                translation: translation,
+                currentHeight: currentHeight,
+                extent: extent,
+                edge: configuration.edge
+            )
+            let closingHeight = extent * CGFloat(min(max(dismissBelowFraction, 0), 1))
+            return height < closingHeight ? .dismiss : .snap(height: height)
+        }
 
         let projectedTranslation = translation + velocity * velocityProjectionDuration
         let threshold = CGFloat(min(max(configuration.dismissalThreshold, 0), 1))
@@ -155,6 +171,15 @@ public enum DragController {
             return min(max(0, height), normalizedExtent)
         }
         return Array(Set(normalizedHeights)).sorted()
+    }
+
+    static func proposedHeight(
+        translation: CGFloat,
+        currentHeight: CGFloat,
+        extent: CGFloat,
+        edge: PopupVerticalEdge
+    ) -> CGFloat {
+        min(max(0, currentHeight - translation * edge.outwardMultiplier), extent)
     }
 }
 

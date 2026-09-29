@@ -436,10 +436,22 @@ private extension PopupView {
             state.gestureStartHeight = startHeight
             state.contentHeight = state.contentHeight ?? startHeight
         }
-        state.translation = constrainedTranslation(
+        let translation = constrainedTranslation(
             value.translation.height,
             configuration: configuration.dragConfiguration
         )
+        if case .continuous = configuration.dragConfiguration.releasePolicy,
+            let startHeight = state.gestureStartHeight {
+            state.heightOverride = DragController.proposedHeight(
+                translation: translation,
+                currentHeight: startHeight,
+                extent: max(1, environment.availableHeight),
+                edge: configuration.dragConfiguration.edge
+            )
+            state.translation = 0
+        } else {
+            state.translation = translation
+        }
         verticalInteractionStates[popup.id] = state
     }
 
@@ -473,6 +485,9 @@ private extension PopupView {
             _ = popupStack.removePopupAndAbove(popup.id)
         case .cancel:
             state.translation = 0
+            if case .continuous = configuration.dragConfiguration.releasePolicy {
+                state.heightOverride = currentHeight
+            }
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                 verticalInteractionStates[popup.id] = state
             }
@@ -490,6 +505,9 @@ private extension PopupView {
         configuration: PopupDragConfiguration
     ) -> CGFloat {
         let extent = max(1, environment.availableHeight)
+        if case .continuous = configuration.releasePolicy {
+            return min(extent, max(-extent, translation))
+        }
         guard !configuration.detents.isEmpty else {
             return switch configuration.edge {
             case .top: max(-extent, min(0, translation))

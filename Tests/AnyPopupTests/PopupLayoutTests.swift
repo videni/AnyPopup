@@ -83,6 +83,24 @@ final class PopupLayoutTests: XCTestCase {
             ]
         )
     }
+
+    func testBottomSheetHeightOverrideKeepsBottomEdgeAttached() {
+        let popup = AnyPopup(FractionalBottomLayoutPopup())
+        let plan = PopupLayoutPlan.resolve(
+            inputs: [PopupLayoutInput(
+                id: popup.id,
+                configuration: popup.configuration,
+                anchorFrame: nil,
+                heightOverride: 310
+            )],
+            environment: layoutEnvironment,
+            contentSizes: [popup.id: .zero],
+            defaults: PopupDefaults()
+        )
+
+        XCTAssertEqual(plan.items.first?.presentation.frame.height, 310)
+        XCTAssertEqual(plan.items.first?.presentation.frame.maxY, 900)
+    }
 }
 
 private struct LayoutPopup: Popup {
@@ -109,6 +127,16 @@ private struct FixedLayoutPopup: Popup {
     var body: some View {
         Text("Popup")
     }
+}
+
+private struct FractionalBottomLayoutPopup: Popup {
+    let popupConfig = ContainerPopupConfig.bottom(
+        BottomPopupConfig()
+            .size(width: .fill, height: .fraction(0.6))
+            .ignoreSafeArea(edges: .all)
+    )
+
+    var body: some View { Color.clear }
 }
 
 private let layoutEnvironment = PopupEnvironment(

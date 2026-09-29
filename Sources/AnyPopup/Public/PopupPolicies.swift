@@ -144,6 +144,11 @@ public enum PopupDragDirection: Sendable, Equatable {
     case down
 }
 
+public enum PopupDragReleasePolicy: Sendable, Equatable {
+    case detents
+    case continuous(dismissBelowFraction: Double)
+}
+
 public enum PopupHorizontalAlignment: Sendable, Equatable {
     case leading
     case center
@@ -155,17 +160,20 @@ public struct DragPolicy: Sendable, Equatable {
     public var direction: PopupDragDirection
     public var activationArea: CGFloat
     public var dismissalThreshold: Double
+    public var releasePolicy: PopupDragReleasePolicy
 
     public init(
         isEnabled: Bool = true,
         direction: PopupDragDirection,
         activationArea: CGFloat = 30,
-        dismissalThreshold: Double = 1.0 / 3.0
+        dismissalThreshold: Double = 1.0 / 3.0,
+        releasePolicy: PopupDragReleasePolicy = .detents
     ) {
         self.isEnabled = isEnabled
         self.direction = direction
         self.activationArea = activationArea
         self.dismissalThreshold = dismissalThreshold
+        self.releasePolicy = releasePolicy
     }
 }
 
@@ -391,6 +399,12 @@ public extension PopupDragConfigurable {
 
     func dragGestureAreaSize(_ size: CGFloat) -> Self {
         drag(isEnabled: drag.isEnabled, activationArea: size)
+    }
+
+    func dragReleasePolicy(_ releasePolicy: PopupDragReleasePolicy) -> Self {
+        var copy = self
+        copy.drag.releasePolicy = releasePolicy
+        return copy
     }
 }
 
