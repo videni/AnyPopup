@@ -31,11 +31,11 @@ public final class PopupEnvironmentBridge: ObservableObject {
         dynamicTypeSize: DynamicTypeSize,
         reduceMotion: Bool
     ) {
-        self.locale = locale
-        self.layoutDirection = layoutDirection
-        self.colorScheme = colorScheme
-        self.dynamicTypeSize = dynamicTypeSize
-        self.reduceMotion = reduceMotion
+        if self.locale != locale { self.locale = locale }
+        if self.layoutDirection != layoutDirection { self.layoutDirection = layoutDirection }
+        if self.colorScheme != colorScheme { self.colorScheme = colorScheme }
+        if self.dynamicTypeSize != dynamicTypeSize { self.dynamicTypeSize = dynamicTypeSize }
+        if self.reduceMotion != reduceMotion { self.reduceMotion = reduceMotion }
     }
 
     public func popupEnvironment(

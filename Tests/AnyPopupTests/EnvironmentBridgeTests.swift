@@ -1,9 +1,27 @@
+import Combine
 import SwiftUI
 import XCTest
 @testable import AnyPopup
 
 @MainActor
 final class EnvironmentBridgeTests: XCTestCase {
+    func testUnchangedEnvironmentDoesNotPublishUpdates() {
+        let bridge = PopupEnvironmentBridge(locale: Locale(identifier: "zh-Hans"))
+        var updates = 0
+        let observation = bridge.objectWillChange.sink { updates += 1 }
+        defer { observation.cancel() }
+
+        bridge.update(locale: bridge.locale, layoutDirection: bridge.layoutDirection,
+                      colorScheme: bridge.colorScheme, dynamicTypeSize: bridge.dynamicTypeSize,
+                      reduceMotion: bridge.reduceMotion)
+        XCTAssertEqual(updates, 0)
+
+        bridge.update(locale: bridge.locale, layoutDirection: bridge.layoutDirection,
+                      colorScheme: .dark, dynamicTypeSize: bridge.dynamicTypeSize,
+                      reduceMotion: bridge.reduceMotion)
+        XCTAssertEqual(updates, 1)
+    }
+
     func testSceneGeometryAddsSafeAreaBackToFullContainerSize() {
         let size = PopupSceneGeometry.fullContainerSize(
             contentSize: CGSize(width: 780, height: 550),
