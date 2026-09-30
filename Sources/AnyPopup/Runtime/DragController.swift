@@ -97,14 +97,13 @@ public enum DragController {
             currentHeight.isFinite,
             contentHeight.isFinite else { return .cancel }
 
-        if case let .continuous(dismissBelowFraction) = configuration.releasePolicy {
+        if let closingHeight = continuousClosingHeight(extent: extent, configuration: configuration) {
             let height = proposedHeight(
                 translation: translation,
                 currentHeight: currentHeight,
                 extent: extent,
                 edge: configuration.edge
             )
-            let closingHeight = extent * CGFloat(min(max(dismissBelowFraction, 0), 1))
             return height < closingHeight ? .dismiss : .snap(height: height)
         }
 
@@ -171,6 +170,25 @@ public enum DragController {
             return min(max(0, height), normalizedExtent)
         }
         return Array(Set(normalizedHeights)).sorted()
+    }
+
+    static func continuousDismissalProgress(
+        height: CGFloat,
+        extent: CGFloat,
+        configuration: PopupDragConfiguration
+    ) -> Double? {
+        guard configuration.isEnabled, height.isFinite, extent.isFinite, extent > 0,
+              let closingHeight = continuousClosingHeight(extent: extent, configuration: configuration),
+              closingHeight > 0, height < closingHeight else { return nil }
+        return Double(min(max((closingHeight - height) / closingHeight, 0), 1))
+    }
+
+    private static func continuousClosingHeight(
+        extent: CGFloat,
+        configuration: PopupDragConfiguration
+    ) -> CGFloat? {
+        guard case let .continuous(fraction) = configuration.releasePolicy else { return nil }
+        return extent * CGFloat(min(max(fraction, 0), 1))
     }
 
     static func proposedHeight(

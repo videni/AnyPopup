@@ -45,7 +45,18 @@ private struct PopupPresentedKey: EnvironmentKey {
     static let defaultValue = false
 }
 
+private struct PopupDragDismissalProgressKey: EnvironmentKey {
+    static let defaultValue: Double? = nil
+}
+
 public extension EnvironmentValues {
+    /// Progress below a continuous sheet's closing line while its handle is being dragged.
+    /// Nil means releasing the handle will keep the sheet open.
+    var popupDragDismissalProgress: Double? {
+        get { self[PopupDragDismissalProgressKey.self] }
+        set { self[PopupDragDismissalProgressKey.self] = newValue }
+    }
+
     /// True after the popup's insertion animation completes, while it remains active.
     var isPopupPresented: Bool {
         get { self[PopupPresentedKey.self] }

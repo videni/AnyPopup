@@ -100,6 +100,10 @@ public struct PopupView: View {
                     .compositingGroup()
                     .environment(\.isPopupPresented, snapshot == nil && presentedPopupIDs.contains(popup.id))
                     .environment(
+                        \.popupDragDismissalProgress,
+                        snapshot == nil ? dragDismissalProgress(for: popup.id, configuration: verticalConfiguration) : nil
+                    )
+                    .environment(
                         \.popupAnchoredGeometry,
                         snapshot?.presentation.anchoredGeometry
                             ?? presentationStore.anchoredGeometry(for: popup.id)
@@ -386,6 +390,19 @@ private extension PopupView {
             result[popup.id] = appearance
         }
         return result
+    }
+
+    func dragDismissalProgress(
+        for id: PopupID,
+        configuration: ResolvedVerticalPopupConfiguration?
+    ) -> Double? {
+        guard let configuration, let state = verticalInteractionStates[id],
+              state.isTracking, let height = state.heightOverride else { return nil }
+        return DragController.continuousDismissalProgress(
+            height: height,
+            extent: max(1, environment.availableHeight),
+            configuration: configuration.dragConfiguration
+        )
     }
 
     func verticalDragGesture(

@@ -214,6 +214,23 @@ final class DragControllerTests: XCTestCase {
         ), .snap(height: 760))
     }
 
+    func testContinuousClosingFeedbackMatchesReleaseThreshold() {
+        let configuration = PopupDragConfiguration.bottom(
+            releasePolicy: .continuous(dismissBelowFraction: 0.3))
+        XCTAssertNil(DragController.continuousDismissalProgress(
+            height: 310, extent: 1_000, configuration: configuration))
+        XCTAssertNil(DragController.continuousDismissalProgress(
+            height: 300, extent: 1_000, configuration: configuration))
+        XCTAssertEqual(DragController.continuousDismissalProgress(
+            height: 150, extent: 1_000, configuration: configuration), 0.5)
+        XCTAssertEqual(DragController.continuousDismissalProgress(
+            height: 0, extent: 1_000, configuration: configuration), 1)
+        XCTAssertNil(DragController.continuousDismissalProgress(
+            height: .nan, extent: 1_000, configuration: configuration))
+        XCTAssertNil(DragController.continuousDismissalProgress(
+            height: 150, extent: 1_000, configuration: .bottom()))
+    }
+
     func testContinuousReleaseIgnoresFlingWhenHeightStaysAboveClosingLine() {
         let configuration = PopupDragConfiguration.bottom(
             releasePolicy: .continuous(dismissBelowFraction: 0.3))
