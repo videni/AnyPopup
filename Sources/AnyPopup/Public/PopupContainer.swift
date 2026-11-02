@@ -39,6 +39,14 @@ public final class PopupContainerView: UIView {
     private static let mountedViews = NSHashTable<PopupContainerView>.weakObjects()
     public let interactionMap: PopupInteractionMap
     public internal(set) var popupStackID: PopupStackID?
+    var layoutSize: CGSize?
+    var layoutSafeAreaInsets: UIEdgeInsets?
+
+    public var popupLayoutBounds: CGRect {
+        layoutSize.map { CGRect(origin: .zero, size: $0) } ?? bounds
+    }
+
+    var popupLayoutSafeAreaBottom: CGFloat { layoutSafeAreaInsets?.bottom ?? safeAreaInsets.bottom }
     var windowDidChange: ((UIWindow?) -> Void)?
     var geometryDidChange: (() -> Void)?
 
@@ -154,17 +162,25 @@ struct PopupLayoutAttachment: UIViewRepresentable {
     let keyboardObserver: PopupKeyboardObserver
     @Binding var sceneSessionID: String
     let isVisible: Bool
+    let containerSize: CGSize
+    let safeAreaInsets: EdgeInsets
 
     @MainActor
     final class Coordinator {
         var registeredSceneID: String?
+        var registrationID: UUID?
         let popupStack: PopupStack
         init(popupStack: PopupStack) { self.popupStack = popupStack }
         func disconnect() {
-            guard let id = registeredSceneID else { return }
+            guard let id = registeredSceneID, let ownerID = registrationID else { return }
             registeredSceneID = nil
-            if PopupStackRegistry.shared.stack(sceneSessionID: id, popupStackID: popupStack.id) === popupStack {
-                PopupStackRegistry.shared.unregister(sceneSessionID: id, popupStackID: popupStack.id)
+            registrationID = nil
+            let stackID = popupStack.id
+            // Dismantling occurs inside SwiftUI graph teardown. Publishing stack changes
+            // here reenters that graph; a remounted host must also keep its new registration.
+            DispatchQueue.main.async {
+                PopupStackRegistry.shared.unregisterInline(sceneSessionID: id,
+                    popupStackID: stackID, ownerID: ownerID)
             }
         }
     }
@@ -174,7 +190,11 @@ struct PopupLayoutAttachment: UIViewRepresentable {
     func makeUIView(context: Context) -> PopupContainerView {
         let view = PopupContainerView(interactionMap: interactionMap)
         view.popupStackID = popupStack.id
+        view.layoutSize = containerSize
+        view.layoutSafeAreaInsets = UIEdgeInsets(top: safeAreaInsets.top, left: safeAreaInsets.leading,
+            bottom: safeAreaInsets.bottom, right: safeAreaInsets.trailing)
         view.isUserInteractionEnabled = false
+        view.accessibilityElementsHidden = true
         keyboardObserver.containerView = view
         view.geometryDidChange = { [weak keyboardObserver] in keyboardObserver?.refreshGeometry() }
         let coordinator = context.coordinator
@@ -189,7 +209,9 @@ struct PopupLayoutAttachment: UIViewRepresentable {
             guard coordinator.registeredSceneID != id else { return }
             coordinator.disconnect()
             coordinator.registeredSceneID = id
-            PopupStackRegistry.shared.register(coordinator.popupStack, sceneSessionID: id)
+            let ownerID = UUID()
+            coordinator.registrationID = ownerID
+            PopupStackRegistry.shared.registerInline(coordinator.popupStack, sceneSessionID: id, ownerID: ownerID)
             DispatchQueue.main.async { sceneSessionID = id }
         }
         return view
@@ -197,6 +219,10 @@ struct PopupLayoutAttachment: UIViewRepresentable {
 
     func updateUIView(_ view: PopupContainerView, context: Context) {
         view.isHidden = !isVisible
+        view.layoutSize = containerSize
+        view.layoutSafeAreaInsets = UIEdgeInsets(top: safeAreaInsets.top, left: safeAreaInsets.leading,
+            bottom: safeAreaInsets.bottom, right: safeAreaInsets.trailing)
+        keyboardObserver.refreshGeometry()
     }
 
     static func dismantleUIView(_ view: PopupContainerView, coordinator: Coordinator) {

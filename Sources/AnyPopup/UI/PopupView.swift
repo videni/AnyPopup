@@ -59,8 +59,8 @@ public struct PopupView: View {
         let topOutsideInteraction = inputs.reversed().compactMap(
             resolvedOutsideInteraction
         ).first
-        let shieldCapturesTouches = !dismissalSnapshots.isEmpty
-            || topOutsideInteraction != .passThrough
+        let shieldCapturesTouches = PopupShield.capturesTouches(
+            topPolicy: topOutsideInteraction, hasDismissalSnapshots: !dismissalSnapshots.isEmpty)
         let shieldLevel = max(
             Double(topIndex),
             dismissalSnapshots.map(\.presentation.zIndex).max() ?? 0
@@ -143,6 +143,8 @@ public struct PopupView: View {
             width: environment.containerSize.width,
             height: environment.containerSize.height
         )
+        .allowsHitTesting(topOutsideInteraction != nil || !dismissalSnapshots.isEmpty)
+        .accessibilityHidden(topOutsideInteraction == nil && dismissalSnapshots.isEmpty)
         .coordinateSpace(name: containerCoordinateSpace)
         .clipped()
         .transaction(value: popups.map(\.id)) { transaction in
@@ -200,10 +202,13 @@ private extension PopupView {
         snapshots: [PopupDismissalSnapshot]
     ) -> [PopupRenderItem] {
         let departingIDs = Set(snapshots.map(\.id))
-        let active = popups.enumerated().compactMap { index, popup in
-            departingIDs.contains(popup.id) ? nil : PopupRenderItem(
-                popup: popup, snapshot: nil, zIndex: Double(index)
-            )
+        let active = popups.enumerated().compactMap { index, popup -> PopupRenderItem? in
+            guard !departingIDs.contains(popup.id) else { return nil }
+            if case .anchored = popup.configuration {
+                guard let frame = anchorFrame(for: popup),
+                      PopupGeometryValidation.isValidAnchorFrame(frame) else { return nil }
+            }
+            return PopupRenderItem(popup: popup, snapshot: nil, zIndex: Double(index))
         }
         let departing = snapshots.map { snapshot in
             PopupRenderItem(

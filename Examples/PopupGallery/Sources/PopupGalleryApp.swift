@@ -6,20 +6,20 @@ struct PopupGalleryApp: App {
     var body: some Scene {
         WindowGroup {
             GalleryRootView()
-                .registerPopups { defaults in
+                .registerPopups(configBuilder: { defaults in
                     defaults
-                        .vertical { vertical in
-                            vertical.outsideInteraction(.dismissTop)
-                        }
+                        .top { $0.outsideInteraction(.dismissTop) }
+                        .bottom { $0.outsideInteraction(.dismissTop) }
                         .anchored { anchored in
                             anchored.outsideInteraction(.dismissTop)
                         }
-                }
+                })
         }
     }
 }
 
 private struct GalleryRootView: View {
+    @StateObject private var menuStack = PopupStack(id: PopupStackID("gallery-menu"))
     private let menuAnchorID = "gallery-menu"
 
     var body: some View {
@@ -41,14 +41,15 @@ private struct GalleryRootView: View {
                         Button("Edge Menu") {
                             Task {
                                 await AnchoredMenuPopup()
-                                    .present(anchoredTo: menuAnchorID)
+                                    .present(anchoredTo: menuAnchorID, popupStackID: menuStack.id)
                             }
                         }
-                        .trackAnchor(menuAnchorID)
+                        .popupAnchor(menuAnchorID, popupStackID: menuStack.id)
                     }
                 }
             }
             .navigationTitle("AnyPopup Gallery")
         }
+        .popupContainer(popupStack: menuStack)
     }
 }

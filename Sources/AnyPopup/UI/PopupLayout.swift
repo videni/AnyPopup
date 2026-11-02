@@ -22,6 +22,8 @@ public struct PopupLayoutFailure: Sendable, Equatable {
 }
 
 public struct PopupLayoutPlan: Sendable, Equatable {
+    public static let empty = Self(items: [], backdrops: [], shieldPlacements: [], interactionRegions: [], failures: [])
+
     public let items: [PopupLayoutItem]
     public let backdrops: [PopupBackdropLayer]
     public let shieldPlacements: [PopupShieldPlacement]
@@ -280,13 +282,7 @@ private extension PopupLayoutPlan {
 
 struct PopupLayout: Layout {
     struct Cache {
-        var plan = PopupLayoutPlan(
-            items: [],
-            backdrops: [],
-            shieldPlacements: [],
-            interactionRegions: [],
-            failures: []
-        )
+        var plan = PopupLayoutPlan.empty
     }
 
     let inputs: [PopupLayoutInput]

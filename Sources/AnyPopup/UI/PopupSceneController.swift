@@ -23,6 +23,7 @@ public final class PopupSceneController {
     private var cancellables: Set<AnyCancellable> = []
     private var hasStarted = false
     private var isSystemPresentationActive = false
+    private var isWindowUpdateScheduled = false
     private var dismissingPopupIDs: Set<PopupID> = []
 
     public init(
@@ -53,7 +54,6 @@ public final class PopupSceneController {
         PopupStackRegistry.shared.register(popupStack, sceneSessionID: sceneSessionID)
         installRootView()
         keyboardObserver.window = window
-        window.isHidden = false
 
         Publishers.CombineLatest(
             popupStack.$popups,
@@ -121,10 +121,7 @@ public final class PopupSceneController {
             start(presenter, completion)
         }
         isSystemPresentationActive = false
-        updateKeyWindow(
-            hasVisualContent: !popupStack.popups.isEmpty
-                || !popupStack.dismissalCoordinator.snapshots.isEmpty
-        )
+        requestWindowUpdate()
         return outcome
     }
 
@@ -318,7 +315,7 @@ private extension PopupSceneController {
         if shouldEndEditing {
             window.endEditing(true)
         }
-        updateKeyWindow(hasVisualContent: !popups.isEmpty || !snapshots.isEmpty)
+        requestWindowUpdate()
     }
 
     func installRootView() {
@@ -335,10 +332,24 @@ private extension PopupSceneController {
         window.rootViewController = hostingController
     }
 
-    func updateKeyWindow(hasVisualContent: Bool) {
-        guard let windowScene else { return }
-        guard !isSystemPresentationActive else { return }
+    func requestWindowUpdate() {
+        guard !isWindowUpdateScheduled else { return }
+        isWindowUpdateScheduled = true
+        // Published callbacks run before storage commits. Hiding a hosting window
+        // there can reenter the same publication through onDisappear.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.isWindowUpdateScheduled = false
+            self.applyWindowState()
+        }
+    }
+
+    func applyWindowState() {
+        guard hasStarted, let windowScene, !isSystemPresentationActive else { return }
+        let hasVisualContent = !popupStack.popups.isEmpty
+            || !popupStack.dismissalCoordinator.snapshots.isEmpty
         if hasVisualContent {
+            window.isHidden = false
             if !window.isKeyWindow {
                 previousKeyWindow = windowScene.windows.first(where: {
                     $0 !== window && $0.isKeyWindow
@@ -347,6 +358,7 @@ private extension PopupSceneController {
             }
         } else {
             restorePreviousKeyWindow()
+            window.isHidden = true
         }
     }
 

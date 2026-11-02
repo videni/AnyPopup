@@ -60,10 +60,19 @@ Task { await BrowserPopup().setCustomID("browser").present() }
 Anchored Popup：
 
 ```swift
-Button("Menu") {
-    Task { await MenuPopup().present(anchoredTo: "menu") }
+struct MenuSource: View {
+    @StateObject private var menuStack = PopupStack(id: PopupStackID("menu"))
+
+    var body: some View {
+        VStack {
+            Button("Menu") {
+                Task { await MenuPopup().present(anchoredTo: "menu", popupStackID: menuStack.id) }
+            }
+            .popupAnchor("menu", popupStackID: menuStack.id)
+        }
+        .popupContainer(popupStack: menuStack)
+    }
 }
-.trackAnchor("menu")
 ```
 
 避让后对齐箭头：

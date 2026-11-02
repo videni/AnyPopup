@@ -22,6 +22,25 @@ final class PopupLayoutAnchorTests: XCTestCase {
             CGRect(x: 258, y: 56, width: 120, height: 80))
     }
 
+    func testOneSourceCanProvideAnchorsForMultipleStacksWithoutReplacingChildren() throws {
+        let map = PopupInteractionMap()
+        let stack = PopupStack(id: PopupStackID("composed"))
+        stack.insert(AnyPopup(AnchorTestPopup(), anchorSource: .aligned(horizontal: "button", vertical: "toolbar")))
+        let source = ZStack(alignment: .topLeading) {
+            Color.clear.frame(width: 36, height: 36)
+                .popupAnchor("button", popupStackID: stack.id)
+                .popupAnchor("button", popupStackID: PopupStackID("another-stack"))
+                .offset(x: 300, y: 20)
+        }.frame(width: 500, height: 100, alignment: .topLeading)
+            .popupAnchor("toolbar", popupStackID: stack.id)
+            .popupAnchor("search-toolbar", popupStackID: PopupStackID("search"))
+            .frame(height: 600, alignment: .top)
+        render(PopupLayoutContainer(content: source, popupStack: stack,
+            defaults: PopupDefaults(), interactionMap: map))
+        XCTAssertEqual(try XCTUnwrap(map.snapshot().regions.first).frame,
+            CGRect(x: 258, y: 100, width: 120, height: 80))
+    }
+
     func testDuplicateAnchorNamesStayWithinTheirStack() throws {
         let map = PopupInteractionMap()
         let stack = PopupStack(id: PopupStackID("target"))
@@ -66,6 +85,26 @@ final class PopupLayoutAnchorTests: XCTestCase {
             CGRect(x: 258, y: 100, width: 120, height: 80))
     }
 
+    func testAbsentAnchorDoesNotMountPopupContent() {
+        let recorder = AnchorMountRecorder()
+        let stack = PopupStack(id: PopupStackID("absent-content"))
+        let map = PopupInteractionMap()
+        stack.insert(AnyPopup(MountTrackingPopup(recorder: recorder), anchorSource: .tracked("absent")))
+        let host = NSHostingController(rootView: PopupLayoutContainer(
+            content: Color.clear.frame(width: 500, height: 600), popupStack: stack,
+            defaults: PopupDefaults(), interactionMap: map))
+        let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 500, height: 600),
+            styleMask: [], backing: .buffered, defer: false)
+        window.contentViewController = host
+        window.orderFront(nil)
+        defer { window.orderOut(nil); window.contentViewController = nil }
+        for _ in 0..<3 {
+            host.view.layoutSubtreeIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+        }
+        XCTAssertEqual(recorder.mounts, 0)
+    }
+
     func testMountedSourceMovesDisappearsAndDoesNotReopenAfterCancellation() throws {
         let model = HostedAnchorModel()
         let stack = PopupStack(id: PopupStackID("lifecycle"))
@@ -96,6 +135,29 @@ final class PopupLayoutAnchorTests: XCTestCase {
         model.isVisible = true
         layout()
         XCTAssertTrue(map.snapshot().regions.isEmpty)
+    }
+
+    func testOpenPopupFollowsStableAnchorWhenLayoutSelectsAnotherSource() throws {
+        let model = HostedAnchorModel()
+        let stack = PopupStack(id: PopupStackID("responsive"))
+        let map = PopupInteractionMap()
+        stack.insert(AnyPopup(AnchorTestPopup(), anchorSource: .tracked("placement")))
+        let host = NSHostingController(rootView: ResponsiveAnchorFixture(model: model, stack: stack, map: map))
+        let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 500, height: 600),
+            styleMask: [], backing: .buffered, defer: false)
+        window.contentViewController = host
+        window.orderFront(nil)
+        defer { window.orderOut(nil); window.contentViewController = nil }
+        for usePanel in [false, true, false] {
+            model.usePanel = usePanel
+            for _ in 0..<3 {
+                host.view.layoutSubtreeIfNeeded()
+                RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+            }
+            XCTAssertEqual(try XCTUnwrap(map.snapshot().regions.first).frame.origin,
+                usePanel ? CGPoint(x: 90, y: 200) : CGPoint(x: 258, y: 56))
+            XCTAssertEqual(stack.popups.count, 1)
+        }
     }
 
     func testNestedPopupUsesItsOwnSourceTreeAndLocalStack() throws {
@@ -130,6 +192,7 @@ private struct AnchorTestPopup: Popup {
 private final class HostedAnchorModel: ObservableObject {
     @Published var offset = CGPoint(x: 300, y: 20)
     @Published var isVisible = true
+    @Published var usePanel = false
 }
 
 private struct HostedAnchorFixture: View {
@@ -155,6 +218,37 @@ private struct NestedAnchorPopup: Popup {
         let source = ZStack(alignment: .topLeading) {
             Color.clear.frame(width: 36, height: 36).popupAnchor("button", popupStackID: stack.id).offset(x: 150, y: 10)
         }.frame(width: 300, height: 250, alignment: .topLeading)
+        PopupLayoutContainer(content: source, popupStack: stack, defaults: PopupDefaults(), interactionMap: map)
+    }
+}
+
+@MainActor
+private final class AnchorMountRecorder {
+    var mounts = 0
+}
+
+private struct MountTrackingPopup: Popup {
+    let recorder: AnchorMountRecorder
+    let popupConfig = AnchoredPopupConfig()
+    var body: some View {
+        Color.red.frame(width: 120, height: 80).onAppear { recorder.mounts += 1 }
+    }
+}
+
+private struct ResponsiveAnchorFixture: View {
+    @ObservedObject var model: HostedAnchorModel
+    let stack: PopupStack
+    let map: PopupInteractionMap
+    var body: some View {
+        let source = ZStack(alignment: .topLeading) {
+            Color.clear.frame(width: 300, height: 200)
+                .popupAnchor("panel", popupStackID: stack.id)
+                .popupAnchor(model.usePanel ? "placement" : "panel", popupStackID: stack.id)
+            Color.clear.frame(width: 36, height: 36)
+                .popupAnchor("button", popupStackID: stack.id)
+                .popupAnchor(model.usePanel ? "button" : "placement", popupStackID: stack.id)
+                .offset(x: 300, y: 20)
+        }.frame(width: 500, height: 600, alignment: .topLeading)
         PopupLayoutContainer(content: source, popupStack: stack, defaults: PopupDefaults(), interactionMap: map)
     }
 }

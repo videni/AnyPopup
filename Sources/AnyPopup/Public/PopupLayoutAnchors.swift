@@ -17,8 +17,8 @@ struct PopupLayoutAnchorPreference: PreferenceKey {
 public extension View {
     /// Associates the source with its view. Coordinates are resolved by the enclosing popup container.
     func popupAnchor(_ anchorID: String, popupStackID: PopupStackID = .shared) -> some View {
-        anchorPreference(key: PopupLayoutAnchorPreference.self, value: .bounds) {
-            [PopupLayoutAnchorKey(popupStackID: popupStackID, anchorID: anchorID): $0]
+        transformAnchorPreference(key: PopupLayoutAnchorPreference.self, value: .bounds) { anchors, source in
+            anchors[PopupLayoutAnchorKey(popupStackID: popupStackID, anchorID: anchorID)] = source
         }
     }
 
@@ -43,6 +43,7 @@ private struct PopupLayoutContainerModifier: ViewModifier {
 struct PopupLayoutContainer<Content: View>: View {
     let content: Content
     @ObservedObject var popupStack: PopupStack
+    @ObservedObject private var dismissalCoordinator: PopupDismissalCoordinator
     let defaults: PopupDefaults
     let interactionMap: PopupInteractionMap
     var isVisible = true
@@ -51,6 +52,16 @@ struct PopupLayoutContainer<Content: View>: View {
     @StateObject private var keyboardObserver = PopupKeyboardObserver()
     #endif
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    init(content: Content, popupStack: PopupStack, defaults: PopupDefaults,
+         interactionMap: PopupInteractionMap, isVisible: Bool = true) {
+        self.content = content
+        self.popupStack = popupStack
+        self.defaults = defaults
+        self.interactionMap = interactionMap
+        self.isVisible = isVisible
+        _dismissalCoordinator = ObservedObject(wrappedValue: popupStack.dismissalCoordinator)
+    }
 
     var body: some View {
         content.overlayPreferenceValue(PopupLayoutAnchorPreference.self) { anchors in
@@ -61,21 +72,47 @@ struct PopupLayoutContainer<Content: View>: View {
                     guard PopupGeometryValidation.isValidAnchorFrame(frame) else { return nil }
                     return (key.anchorID, frame)
                 })
-                PopupView(popupStack: popupStack, sceneSessionID: sceneSessionID,
-                    environment: PopupEnvironment(containerSize: proxy.size, safeArea: proxy.safeAreaInsets,
-                        keyboardOcclusionHeight: keyboardHeight, accessibilityReduceMotion: reduceMotion),
-                    defaults: defaults, interactionMap: interactionMap, trackedAnchorFrames: frames)
-                    .environment(\.popupContainerSize, proxy.size)
-                    .environment(\.popupAnchorFrames, frames)
-                    .environment(\.popupContainerStackID, popupStack.id)
-                    .opacity(isVisible ? 1 : 0)
-                    .allowsHitTesting(isVisible)
-                    .accessibilityHidden(!isVisible)
-                    #if canImport(UIKit)
-                    .background(PopupLayoutAttachment(popupStack: popupStack, interactionMap: interactionMap,
-                        keyboardObserver: keyboardObserver, sceneSessionID: $sceneSessionID, isVisible: isVisible)
-                        .allowsHitTesting(false))
-                    #endif
+                let hasRenderablePopup = popupStack.popups.contains { popup in
+                    if case .container = popup.configuration { return true }
+                    guard let frame = PopupAnchorFrameResolver.resolve(popup.anchorSource, frames: frames) else { return false }
+                    return PopupGeometryValidation.isValidAnchorFrame(frame)
+                }
+                let shouldRender = hasRenderablePopup || !dismissalCoordinator.snapshots.isEmpty
+                ZStack(alignment: .topLeading) {
+                    if shouldRender {
+                        PopupView(popupStack: popupStack, sceneSessionID: sceneSessionID,
+                            environment: PopupEnvironment(containerSize: proxy.size, safeArea: proxy.safeAreaInsets,
+                                keyboardOcclusionHeight: keyboardHeight, accessibilityReduceMotion: reduceMotion),
+                            defaults: defaults, interactionMap: interactionMap, trackedAnchorFrames: frames)
+                            .environment(\.popupContainerSize, proxy.size)
+                            .environment(\.popupAnchorFrames, frames)
+                            .environment(\.popupContainerStackID, popupStack.id)
+                            .opacity(isVisible ? 1 : 0)
+                            .allowsHitTesting(isVisible)
+                            .accessibilityHidden(!isVisible)
+                    }
+                }
+                .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
+                .onChange(of: shouldRender, initial: true) {
+                    if !shouldRender { interactionMap.publish(.empty) }
+                }
+                #if canImport(UIKit)
+                .background(alignment: .topLeading) {
+                    // Registration needs an origin, not a full-screen native hit/accessibility surface.
+                    PopupLayoutAttachment(popupStack: popupStack, interactionMap: interactionMap,
+                        keyboardObserver: keyboardObserver, sceneSessionID: $sceneSessionID, isVisible: isVisible,
+                        containerSize: proxy.size, safeAreaInsets: proxy.safeAreaInsets)
+                        .frame(width: 0, height: 0)
+                        // Only the bridge uses physical left-to-right axes; popup content keeps its direction.
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        .environment(\.layoutDirection, .leftToRight)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { _ in
+                    keyboardObserver.refreshGeometry()
+                }
+                #endif
             }
             .ignoresSafeArea(.keyboard)
         }

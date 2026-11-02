@@ -55,6 +55,7 @@ public final class PopupStackRegistry {
     }
 
     private var stacks: [Key: PopupStack] = [:]
+    private var inlineOwners: [Key: UUID] = [:]
     private var activeSceneSessionID: String?
     private let dismissScheduler: any PopupDismissScheduling
 
@@ -62,8 +63,21 @@ public final class PopupStackRegistry {
         self.dismissScheduler = dismissScheduler
     }
 
+    func registerInline(_ stack: PopupStack, sceneSessionID: String, ownerID: UUID) {
+        let key = Key(sceneSessionID: sceneSessionID, popupStackID: stack.id)
+        if stacks[key] !== stack { register(stack, sceneSessionID: sceneSessionID) }
+        inlineOwners[key] = ownerID
+    }
+
+    func unregisterInline(sceneSessionID: String, popupStackID: PopupStackID, ownerID: UUID) {
+        let key = Key(sceneSessionID: sceneSessionID, popupStackID: popupStackID)
+        guard inlineOwners[key] == ownerID else { return }
+        unregister(sceneSessionID: sceneSessionID, popupStackID: popupStackID)
+    }
+
     public func register(_ stack: PopupStack, sceneSessionID: String) {
         let key = Key(sceneSessionID: sceneSessionID, popupStackID: stack.id)
+        inlineOwners.removeValue(forKey: key)
         if let replaced = stacks.updateValue(stack, forKey: key) {
             _ = applyRemoval(replaced.removeAll())
             replaced.dismissalCoordinator.cancelAll()
@@ -72,6 +86,7 @@ public final class PopupStackRegistry {
     }
 
     public func unregister(sceneSessionID: String, popupStackID: PopupStackID) {
+        inlineOwners.removeValue(forKey: Key(sceneSessionID: sceneSessionID, popupStackID: popupStackID))
         let removed = stacks.removeValue(forKey: Key(
             sceneSessionID: sceneSessionID,
             popupStackID: popupStackID

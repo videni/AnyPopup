@@ -149,8 +149,10 @@ final class PopupKeyboardObserver: NSObject, ObservableObject {
         } else {
             keyboard = container.convert(window.keyboardLayoutGuide.layoutFrame, from: window)
         }
-        return PopupKeyboardGeometry.occlusionHeight(container: container.bounds,
-            safeAreaBottom: container.safeAreaInsets.bottom, keyboard: keyboard)
+        let bounds = (container as? PopupContainerView)?.popupLayoutBounds ?? container.bounds
+        let safeAreaBottom = (container as? PopupContainerView)?.popupLayoutSafeAreaBottom ?? container.safeAreaInsets.bottom
+        return PopupKeyboardGeometry.occlusionHeight(container: bounds,
+            safeAreaBottom: safeAreaBottom, keyboard: keyboard)
     }
 
     private func applyCurrentGeometry() {

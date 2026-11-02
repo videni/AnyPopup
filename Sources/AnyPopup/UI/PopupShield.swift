@@ -12,6 +12,10 @@ public enum ShieldPlan {
 }
 
 struct PopupShield: View {
+    static func capturesTouches(topPolicy: OutsideInteractionPolicy?, hasDismissalSnapshots: Bool) -> Bool {
+        hasDismissalSnapshots || (topPolicy != nil && topPolicy != .passThrough)
+    }
+
     let onTap: (CGPoint) -> Void
 
     var body: some View {
