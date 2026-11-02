@@ -89,3 +89,22 @@ struct MenuPopup: Popup {
 ## License
 
 Apache License 2.0. See `LICENSE` and `NOTICE`.
+
+## Layout-bound anchors
+
+Use `popupAnchor("button", popupStackID: stack.id)` on the source and
+`popupContainer(popupStack: stack)` on their common ancestor. The container
+resolves SwiftUI anchors directly into its local coordinate space; it does not
+publish CGRect copies to AnchorRegistry. The source and container must belong
+to the same SwiftUI view tree.
+
+For a nested popup, give its child menu a separate stack and attach a child
+`popupContainer` around the parent popup's content. A container reads anchors
+from its source content, not from the overlay it generates. This also gives the
+child menu the parent's lifecycle and coordinate space. The window-hosted
+`registerPopups` API remains available for global container popups and explicit
+UIKit rectangle anchors. Legacy `trackAnchor` stays source-compatible.
+
+Use `present(anchoredTo: "button", alignedVerticallyTo: "toolbar", popupStackID: stack.id)`
+to combine the current button's horizontal bounds with the current toolbar's
+vertical bounds without freezing a coordinate difference at click time.

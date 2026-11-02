@@ -49,7 +49,26 @@ private struct PopupDragDismissalProgressKey: EnvironmentKey {
     static let defaultValue: Double? = nil
 }
 
+private struct PopupAnchorFramesKey: EnvironmentKey {
+    static var defaultValue: [String: CGRect] { [:] }
+}
+
+private struct PopupContainerStackIDKey: EnvironmentKey {
+    static let defaultValue: PopupStackID? = nil
+}
+
 public extension EnvironmentValues {
+    /// Sources resolved in the enclosing container's local coordinates for this layout.
+    var popupAnchorFrames: [String: CGRect] {
+        get { self[PopupAnchorFramesKey.self] }
+        set { self[PopupAnchorFramesKey.self] = newValue }
+    }
+
+    var popupContainerStackID: PopupStackID? {
+        get { self[PopupContainerStackIDKey.self] }
+        set { self[PopupContainerStackIDKey.self] = newValue }
+    }
+
     /// Progress below a continuous sheet's closing line while its handle is being dragged.
     /// Nil means releasing the handle will keep the sheet open.
     var popupDragDismissalProgress: Double? {

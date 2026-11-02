@@ -64,6 +64,15 @@ enum PopupSceneGeometry {
     }
 }
 
+enum PopupKeyboardGeometry {
+    static func occlusionHeight(container: CGRect, safeAreaBottom: CGFloat, keyboard: CGRect) -> CGFloat {
+        guard !container.isEmpty, !keyboard.isEmpty, !keyboard.isNull,
+              keyboard.maxY >= container.maxY - 1,
+              keyboard.maxX > container.minX, keyboard.minX < container.maxX else { return 0 }
+        return max(0, min(container.height, container.maxY - keyboard.minY) - safeAreaBottom)
+    }
+}
+
 #if canImport(UIKit)
 import UIKit
 
@@ -117,6 +126,37 @@ struct PopupSceneRootView: View {
 final class PopupKeyboardObserver: NSObject, ObservableObject {
     @Published private(set) var occlusionHeight: CGFloat = 0
     weak var window: UIWindow?
+    weak var containerView: UIView?
+    private var keyboardFrameInScreen: CGRect?
+    private var isRefreshScheduled = false
+
+    func refreshGeometry() {
+        guard !isRefreshScheduled else { return }
+        isRefreshScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.isRefreshScheduled = false
+            self.applyCurrentGeometry()
+        }
+    }
+
+    private func currentHeight() -> CGFloat {
+        guard let window else { return 0 }
+        let container = containerView ?? window
+        let keyboard: CGRect
+        if let keyboardFrameInScreen {
+            keyboard = container.convert(keyboardFrameInScreen, from: window.screen.coordinateSpace)
+        } else {
+            keyboard = container.convert(window.keyboardLayoutGuide.layoutFrame, from: window)
+        }
+        return PopupKeyboardGeometry.occlusionHeight(container: container.bounds,
+            safeAreaBottom: container.safeAreaInsets.bottom, keyboard: keyboard)
+    }
+
+    private func applyCurrentGeometry() {
+        let height = currentHeight()
+        if height != occlusionHeight { occlusionHeight = height }
+    }
 
     init(notificationCenter: NotificationCenter = .default) {
         super.init()
@@ -139,16 +179,9 @@ final class PopupKeyboardObserver: NSObject, ObservableObject {
     }
 
     @objc private func update(_ notification: Notification) {
-        let height: CGFloat
-        if notification.name != UIResponder.keyboardWillHideNotification,
-           let window,
-           let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
-            let converted = window.convert(frame, from: nil)
-            let rawOcclusion = max(0, window.bounds.maxY - converted.minY)
-            height = max(0, rawOcclusion - window.safeAreaInsets.bottom)
-        } else {
-            height = 0
-        }
+        keyboardFrameInScreen = notification.name == UIResponder.keyboardWillHideNotification
+            ? .null : notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect
+        let height = currentHeight()
         guard height != occlusionHeight else { return }
         let duration = notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double ?? 0
         let curve = notification.userInfo?[UIResponder.keyboardAnimationCurveUserInfoKey] as? Int ?? 0

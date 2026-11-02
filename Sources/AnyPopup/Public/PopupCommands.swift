@@ -108,12 +108,13 @@ public extension Popup where Config == AnchoredPopupConfig {
     @MainActor
     func present(
         anchoredTo anchorID: String,
+        alignedVerticallyTo verticalAnchorID: String? = nil,
         customID: String? = nil,
         popupStackID: PopupStackID = .shared
     ) async {
         let popup = AnyPopup(
             self,
-            anchorSource: .tracked(anchorID),
+            anchorSource: verticalAnchorID.map { .aligned(horizontal: anchorID, vertical: $0) } ?? .tracked(anchorID),
             customIDOverride: customID,
             defaultCustomID: anchorID
         )

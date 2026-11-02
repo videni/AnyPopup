@@ -59,7 +59,7 @@ final class DragControllerTests: XCTestCase {
 
         XCTAssertEqual(
             DragController.localStartLocation(
-                globalLocation: 340,
+                containerLocation: 340,
                 popupFrame: popupFrame
             ),
             40

@@ -274,14 +274,7 @@ private extension PopupLayoutPlan {
         source: PopupAnchorSource?,
         trackedAnchorFrames: [String: CGRect]
     ) -> CGRect? {
-        switch source {
-        case let .frame(frame):
-            frame
-        case let .tracked(anchorID):
-            trackedAnchorFrames[anchorID]
-        case nil:
-            nil
-        }
+        PopupAnchorFrameResolver.resolve(source, frames: trackedAnchorFrames)
     }
 }
 

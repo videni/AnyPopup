@@ -56,10 +56,10 @@ public enum DragResolution: Sendable, Equatable {
 
 public enum DragController {
     static func localStartLocation(
-        globalLocation: CGFloat,
+        containerLocation: CGFloat,
         popupFrame: CGRect
     ) -> CGFloat {
-        globalLocation - popupFrame.minY
+        containerLocation - popupFrame.minY
     }
 
     public static func isValidStart(

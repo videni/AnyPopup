@@ -11,6 +11,7 @@ public struct PopupID: Sendable, Hashable {
 
 public enum PopupAnchorSource: Sendable, Equatable {
     case tracked(String)
+    case aligned(horizontal: String, vertical: String)
     case frame(CGRect)
 }
 

@@ -38,9 +38,11 @@ public struct PopupContainer: UIViewControllerRepresentable {
 public final class PopupContainerView: UIView {
     private static let mountedViews = NSHashTable<PopupContainerView>.weakObjects()
     public let interactionMap: PopupInteractionMap
-    fileprivate var windowDidChange: ((UIWindow?) -> Void)?
+    public internal(set) var popupStackID: PopupStackID?
+    var windowDidChange: ((UIWindow?) -> Void)?
+    var geometryDidChange: (() -> Void)?
 
-    fileprivate init(interactionMap: PopupInteractionMap) {
+    init(interactionMap: PopupInteractionMap) {
         self.interactionMap = interactionMap
         super.init(frame: .zero)
         backgroundColor = .clear
@@ -63,6 +65,11 @@ public final class PopupContainerView: UIView {
         mountedViews.allObjects.filter {
             $0.window?.windowScene === scene && !$0.isHidden && $0.alpha > 0.01
         }
+    }
+
+    public override func layoutSubviews() {
+        super.layoutSubviews()
+        geometryDidChange?()
     }
 
     public override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
@@ -98,6 +105,7 @@ private final class PopupContainerController: UIViewController {
 
     override func loadView() {
         let container = PopupContainerView(interactionMap: interactionMap)
+        container.popupStackID = popupStack.id
         container.windowDidChange = { [weak self] window in self?.connect(to: window) }
         view = container
         addChild(contentController)
@@ -137,6 +145,64 @@ private final class PopupContainerController: UIViewController {
         keyboardObserver.window = nil
         PopupStackRegistry.shared.unregister(sceneSessionID: id, popupStackID: popupStack.id)
         contentController.rootView = AnyView(EmptyView())
+    }
+}
+/// The marker participates in UIKit routing without hosting another SwiftUI tree.
+struct PopupLayoutAttachment: UIViewRepresentable {
+    let popupStack: PopupStack
+    let interactionMap: PopupInteractionMap
+    let keyboardObserver: PopupKeyboardObserver
+    @Binding var sceneSessionID: String
+    let isVisible: Bool
+
+    @MainActor
+    final class Coordinator {
+        var registeredSceneID: String?
+        let popupStack: PopupStack
+        init(popupStack: PopupStack) { self.popupStack = popupStack }
+        func disconnect() {
+            guard let id = registeredSceneID else { return }
+            registeredSceneID = nil
+            if PopupStackRegistry.shared.stack(sceneSessionID: id, popupStackID: popupStack.id) === popupStack {
+                PopupStackRegistry.shared.unregister(sceneSessionID: id, popupStackID: popupStack.id)
+            }
+        }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(popupStack: popupStack) }
+
+    func makeUIView(context: Context) -> PopupContainerView {
+        let view = PopupContainerView(interactionMap: interactionMap)
+        view.popupStackID = popupStack.id
+        view.isUserInteractionEnabled = false
+        keyboardObserver.containerView = view
+        view.geometryDidChange = { [weak keyboardObserver] in keyboardObserver?.refreshGeometry() }
+        let coordinator = context.coordinator
+        view.windowDidChange = { [weak coordinator, weak keyboardObserver] window in
+            guard let coordinator else { return }
+            keyboardObserver?.window = window
+            keyboardObserver?.refreshGeometry()
+            guard let id = window?.windowScene?.session.persistentIdentifier else {
+                coordinator.disconnect()
+                return
+            }
+            guard coordinator.registeredSceneID != id else { return }
+            coordinator.disconnect()
+            coordinator.registeredSceneID = id
+            PopupStackRegistry.shared.register(coordinator.popupStack, sceneSessionID: id)
+            DispatchQueue.main.async { sceneSessionID = id }
+        }
+        return view
+    }
+
+    func updateUIView(_ view: PopupContainerView, context: Context) {
+        view.isHidden = !isVisible
+    }
+
+    static func dismantleUIView(_ view: PopupContainerView, coordinator: Coordinator) {
+        view.windowDidChange = nil
+        view.geometryDidChange = nil
+        coordinator.disconnect()
     }
 }
 #endif

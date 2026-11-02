@@ -9,6 +9,7 @@ public struct PopupView: View {
     @ObservedObject private var dismissalCoordinator: PopupDismissalCoordinator
     @StateObject private var presentationStore: PopupPresentationStore
     @State private var verticalInteractionStates: [PopupID: PopupVerticalInteractionState] = [:]
+    @Namespace private var containerCoordinateSpace
     @State private var presentedPopupIDs: Set<PopupID> = []
 
     public let interactionMap: PopupInteractionMap
@@ -16,6 +17,7 @@ public struct PopupView: View {
     private let sceneSessionID: String
     private let environment: PopupEnvironment
     private let defaults: PopupDefaults
+    private let trackedAnchorFrames: [String: CGRect]?
     private let onPassThrough: @MainActor (CGPoint, PopupID?) -> Void
 
     @MainActor
@@ -26,6 +28,7 @@ public struct PopupView: View {
         defaults: PopupDefaults = PopupDefaults(),
         anchorRegistry: AnchorRegistry = .shared,
         interactionMap: PopupInteractionMap = PopupInteractionMap(),
+        trackedAnchorFrames: [String: CGRect]? = nil,
         onPassThrough: @escaping @MainActor (CGPoint, PopupID?) -> Void = { _, _ in }
     ) {
         _popupStack = ObservedObject(wrappedValue: popupStack)
@@ -36,6 +39,7 @@ public struct PopupView: View {
         self.environment = environment
         self.defaults = defaults
         self.interactionMap = interactionMap
+        self.trackedAnchorFrames = trackedAnchorFrames
         self.onPassThrough = onPassThrough
         popupStack.dismissalCoordinator.bindInteractionMap(interactionMap)
     }
@@ -139,6 +143,7 @@ public struct PopupView: View {
             width: environment.containerSize.width,
             height: environment.containerSize.height
         )
+        .coordinateSpace(name: containerCoordinateSpace)
         .clipped()
         .transaction(value: popups.map(\.id)) { transaction in
             let enteringIDs = Set(popups.map(\.id)).subtracting(presentedPopupIDs)
@@ -225,19 +230,20 @@ private extension PopupView {
     }
 
     func anchorFrame(for popup: AnyPopup) -> CGRect? {
+        if let trackedAnchorFrames {
+            return PopupAnchorFrameResolver.resolve(popup.anchorSource, frames: trackedAnchorFrames)
+        }
+        func registered(_ id: String) -> CGRect? {
+            anchorRegistry.frame(for: AnchorRegistry.Key(sceneSessionID: sceneSessionID,
+                popupStackID: popupStack.id, anchorID: id))
+        }
         switch popup.anchorSource {
-        case let .frame(frame):
-            frame
-        case let .tracked(anchorID):
-            anchorRegistry.frame(
-                for: AnchorRegistry.Key(
-                    sceneSessionID: sceneSessionID,
-                    popupStackID: popupStack.id,
-                    anchorID: anchorID
-                )
-            )
-        case nil:
-            nil
+        case let .frame(frame): return frame
+        case let .tracked(id): return registered(id)
+        case let .aligned(horizontal, vertical):
+            guard let x = registered(horizontal), let y = registered(vertical) else { return nil }
+            return CGRect(x: x.minX, y: y.minY, width: x.width, height: y.height)
+        case nil: return nil
         }
     }
 
@@ -409,7 +415,7 @@ private extension PopupView {
         popup: AnyPopup,
         configuration: ResolvedVerticalPopupConfiguration?
     ) -> some Gesture {
-        DragGesture(minimumDistance: 5, coordinateSpace: .global)
+        DragGesture(minimumDistance: 5, coordinateSpace: .named(containerCoordinateSpace))
             .onChanged { value in
                 updateVerticalDrag(
                     popup: popup,
@@ -441,7 +447,7 @@ private extension PopupView {
         if !state.isTracking {
             let startHeight = state.heightOverride ?? presentation.frame.height
             let localStartLocation = DragController.localStartLocation(
-                globalLocation: value.startLocation.y,
+                containerLocation: value.startLocation.y,
                 popupFrame: presentation.frame
             )
             guard DragController.isValidStart(
